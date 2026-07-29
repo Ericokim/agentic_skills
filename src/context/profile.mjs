@@ -29,6 +29,7 @@ const PATH_HINTS = {
   ui: [/^(components|src\/components|app\/components)\//],
   tests: [/^(test|tests|__tests__|spec)\//, /\.(test|spec)\.[a-z]+$/],
   secrets: [/^\.env\.(example|sample)$/],
+  domainLayer: [/^(src\/)?(domain|services|core|usecases|use-cases)\//],
 };
 
 const empty = () => ({ present: false, evidence: [] });
@@ -65,6 +66,7 @@ export function profile(snapshot) {
     database: empty(), httpRoutes: empty(), backgroundWork: empty(),
     ui: empty(), browserTooling: empty(), secrets: empty(), tests: empty(),
     commands: empty(), workflowSkills: empty(), librarySkills: empty(),
+    domainLayer: empty(),
   };
 
   // Manifests, at any depth, so a monorepo workspace counts.

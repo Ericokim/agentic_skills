@@ -3,8 +3,8 @@
 export const id = 'domain-processor';
 export const number = 19;
 export const title = 'Domain processor';
-export const when = (signals) => signals.ui.present && signals.database.present;
-export const requires = 'a UI and a domain model';
+export const when = (signals) => signals.ui.present && signals.domainLayer.present;
+export const requires = 'a UI and a domain layer';
 
 export function text(signals) {
   return `# 19. Domain processor

@@ -6,7 +6,7 @@ import { SECTIONS, selectSections } from '../../src/context/registry.mjs';
 const signals = (on = {}) => {
   const ids = ['packageManager','languages','frameworks','database','httpRoutes',
     'backgroundWork','ui','browserTooling','secrets','tests','commands',
-    'workflowSkills','librarySkills'];
+    'workflowSkills','librarySkills','domainLayer'];
   return Object.fromEntries(ids.map((id) => [id, { present: Boolean(on[id]), evidence: [] }]));
 };
 
@@ -78,7 +78,7 @@ test('every conditional section names what it requires', () => {
 test('a full profile selects all 28', () => {
   const all = signals({
     database: true, httpRoutes: true, backgroundWork: true, ui: true,
-    browserTooling: true, secrets: true,
+    browserTooling: true, secrets: true, domainLayer: true,
   });
   assert.equal(selectSections({ signals: all }).included.length, 28);
 });
@@ -94,4 +94,35 @@ test('the workflow section names the installed skills when there are any', () =>
   const workflow = SECTIONS.find((s) => s.id === 'workflow');
   assert.match(workflow.text(withSkills), /\/develop/);
   assert.doesNotMatch(workflow.text(signals()), /\/develop/);
+});
+
+const CONDITIONAL_CASES = [
+  ['data-platform', { database: true }],
+  ['source-selection', { backgroundWork: true, database: true }],
+  ['process-model', { backgroundWork: true, database: true }],
+  ['storage-rules', { database: true }],
+  ['input-extraction', { backgroundWork: true }],
+  ['candidate-filtering', { backgroundWork: true, database: true }],
+  ['record-validation', { database: true }],
+  ['api-routes', { httpRoutes: true }],
+  ['privileged-access', { secrets: true }],
+  ['manual-runs', { backgroundWork: true }],
+  ['scheduler', { backgroundWork: true }],
+  ['domain-processor', { ui: true, domainLayer: true }],
+  ['advanced-capability', { backgroundWork: true, ui: true, database: true }],
+  ['visual-testing', { ui: true, browserTooling: true }],
+];
+
+test('each conditional section is included exactly when its evidence is present', () => {
+  for (const [id, on] of CONDITIONAL_CASES) {
+    const section = SECTIONS.find((s) => s.id === id);
+    assert.ok(section, `${id} is missing from the registry`);
+    assert.equal(section.when(signals(on)), true, `${id} should be included with ${JSON.stringify(on)}`);
+    assert.equal(section.when(signals()), false, `${id} should be absent with no evidence`);
+  }
+});
+
+test('every conditional section is covered by the table above', () => {
+  const conditional = SECTIONS.filter((s) => !s.when(signals())).map((s) => s.id).sort();
+  assert.deepEqual(conditional, CONDITIONAL_CASES.map(([id]) => id).sort());
 });

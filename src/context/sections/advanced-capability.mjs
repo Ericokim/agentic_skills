@@ -3,8 +3,8 @@
 export const id = 'advanced-capability';
 export const number = 20;
 export const title = 'Advanced capability';
-export const when = (signals) => signals.backgroundWork.present && signals.ui.present;
-export const requires = 'background work and a UI';
+export const when = (signals) => signals.backgroundWork.present && signals.ui.present && signals.database.present;
+export const requires = 'background work, a UI, and a database';
 
 export function text(signals) {
   return `# 20. Advanced capability

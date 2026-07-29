@@ -12,6 +12,5 @@ export function text(signals) {
 {{DATA_PLATFORM}} is the source of truth for {{PRIMARY_RECORD_NAME}}.
 
 - Schema changes go through migrations in {{MIGRATIONS_PATH}}.
-- {{PRIVILEGED_ACCESS_RULE}}
 - Never read or write around the data layer.`;
 }

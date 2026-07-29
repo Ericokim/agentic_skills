@@ -14,7 +14,7 @@ test('every signal exists as a key even when absent', () => {
   for (const id of [
     'packageManager', 'languages', 'frameworks', 'database', 'httpRoutes',
     'backgroundWork', 'ui', 'browserTooling', 'secrets', 'tests', 'commands',
-    'workflowSkills', 'librarySkills',
+    'workflowSkills', 'librarySkills', 'domainLayer',
   ]) {
     assert.ok(id in signals, `${id} missing`);
     assert.equal(typeof signals[id].present, 'boolean');
@@ -95,4 +95,15 @@ test('a recognised framework is detected with its version', () => {
   const { signals } = profile(snap({ 'package.json': '{"dependencies":{"next":"15.0.0","lodash":"^4"}}' }));
   assert.equal(signals.frameworks.present, true);
   assert.deepEqual(signals.frameworks.detail, { next: '15.0.0' });
+});
+
+test('detects a domain layer from a domain directory', () => {
+  const { signals } = profile(snap({}, ['src/domain/order.ts']));
+  assert.equal(signals.domainLayer.present, true);
+  assert.ok(signals.domainLayer.evidence.includes('src/domain/order.ts'));
+});
+
+test('does not detect a domain layer from a components directory', () => {
+  const { signals } = profile(snap({}, ['src/components/Button.tsx']));
+  assert.equal(signals.domainLayer.present, false);
 });

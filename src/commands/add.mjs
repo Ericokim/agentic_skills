@@ -80,6 +80,14 @@ export async function add({ root, spec, name, targets, cacheDir, dryRun, force, 
         line(
           `${symbol.ok} ${bold(result.name)} ${dim(`${result.prepared.source} ${symbol.bullet} ${where}`)}`,
         );
+        // A target that cannot carry bundled files installs this skill
+        // incomplete. Say so now, rather than leaving it to be discovered when
+        // an agent cannot find a file its instructions told it to read.
+        for (const drop of result.prepared.droppedAssets ?? []) {
+          line(
+            `    ${symbol.warn} ${dim(`${drop.target} cannot carry bundled files, so ${drop.count} were left out and this skill will be incomplete there`)}`,
+          );
+        }
       }
     }
   }

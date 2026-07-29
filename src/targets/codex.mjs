@@ -5,9 +5,16 @@
 // the compiled SKILL.md, so a tool that ignores this file loses nothing but the
 // picker entry.
 
+import { withAssets } from './assets.mjs';
+
 export const id = 'codex';
-export const label = 'OpenAI Codex';
-export const detect = '.agents';
+export const label = 'OpenAI Codex (.agents/skills plus a picker adapter)';
+
+// Deliberately not auto detected. Codex reads the same .agents directory the
+// generic target writes, so detecting both would plan the same SKILL.md twice.
+// The open layout is the neutral default; this adapter is opt in with
+// `-t codex`, because its openai.yaml is useful only to Codex itself.
+export const detect = null;
 
 const quote = (value) => `"${String(value).replace(/"/g, '\\"')}"`;
 
@@ -21,9 +28,16 @@ interface:
 `;
 }
 
-export function plan({ root, name, compiled, skill }) {
-  return [
-    { path: `${root}/.agents/skills/${name}/SKILL.md`, contents: compiled },
-    { path: `${root}/.agents/skills/${name}/agents/openai.yaml`, contents: adapter({ name, skill }) },
-  ];
+export const carriesAssets = true;
+
+export function plan({ root, name, compiled, skill, assets }) {
+  const dir = `${root}/.agents/skills/${name}`;
+  return withAssets(
+    [
+      { path: `${dir}/SKILL.md`, contents: compiled },
+      { path: `${dir}/agents/openai.yaml`, contents: adapter({ name, skill }) },
+    ],
+    dir,
+    assets,
+  );
 }

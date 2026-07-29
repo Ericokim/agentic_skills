@@ -37,7 +37,13 @@ export function planEmit(targetId, context) {
   return target.plan(context);
 }
 
-/** Directories that, if present, suggest a target is in use in this project. */
+/**
+ * Directories that, if present, suggest a target is in use in this project.
+ *
+ * At most one target per directory. Two targets writing the same path would
+ * plan the same file twice, so a target that shares a directory with another
+ * sets `detect` to null and is chosen explicitly instead.
+ */
 export function detectionHints() {
   return TARGETS.filter((target) => target.detect).map((target) => ({
     id: target.id,

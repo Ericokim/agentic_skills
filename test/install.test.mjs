@@ -178,3 +178,21 @@ test('installing every authored skill in this repo succeeds', async () => {
     assert.match(installed, /## Definition of done/, `${name} lost its definition of done`);
   }
 });
+
+test('selecting two targets that share a path plans that file once', async () => {
+  const root = await project();
+  const spec = await sourceSkill('build', GOOD);
+
+  const prepared = await prepareInstall({
+    root,
+    name: null,
+    spec,
+    targets: ['codex', 'generic'], // both write .agents/skills/build/SKILL.md
+    cwd: root,
+  });
+
+  const paths = prepared.files.map((f) => f.path);
+  assert.deepEqual(paths, [...new Set(paths)], `duplicate planned paths: ${paths.join(', ')}`);
+  assert.equal(paths.filter((p) => p.endsWith('.agents/skills/build/SKILL.md')).length, 1);
+  assert.ok(paths.some((p) => p.endsWith('agents/openai.yaml')), 'codex adapter should survive');
+});

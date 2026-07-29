@@ -7,8 +7,13 @@
 // itself carries over intact, which is the part that changes behavior.
 
 export const id = 'cursor';
-export const label = 'Cursor';
+export const label = 'Cursor (one flat rule file, no bundled files)';
 export const detect = '.cursor';
+
+// A .mdc rule is a single file with nowhere to put a sibling, so a skill that
+// reads bundled files installs here incomplete. Reported at install time rather
+// than discovered when an agent cannot find a file it was told to open.
+export const carriesAssets = false;
 
 /** Strip the skill frontmatter and keep the compiled body. */
 function bodyOf(compiled) {

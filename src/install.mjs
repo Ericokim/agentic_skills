@@ -21,8 +21,8 @@ import { fileHashes, integrity, lockEntry } from './lock.mjs';
 import { parseSkill } from './skill.mjs';
 import { parseSource } from './source.mjs';
 import { STANDARD_VERSION } from './standard/index.mjs';
-import { planEmit } from './targets/index.mjs';
-import { validateSkill } from './validate.mjs';
+import { planEmit, targetById } from './targets/index.mjs';
+import { validateAsset, validateSkill } from './validate.mjs';
 
 export class InstallError extends Error {
   constructor(message) {
@@ -79,9 +79,42 @@ export async function locateSkill(dir, name) {
 }
 
 /**
+ * Every file that ships beside a SKILL.md, with its path relative to the skill.
+ *
+ * A skill's instructions reference these by relative path, so they have to
+ * arrive with it. Installing the SKILL.md alone produces a skill that tells the
+ * agent to read a file that is not there, and nothing errors: the agent just
+ * improvises, which is the failure mode this project exists to prevent.
+ */
+async function collectAssets(dir) {
+  const assets = [];
+  const walk = async (current, prefix) => {
+    let entries;
+    try {
+      entries = await readdir(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        await walk(join(current, entry.name), relative);
+        continue;
+      }
+      if (entry.name === 'SKILL.md' && !prefix) continue;
+      const contents = await readIfPresent(join(current, entry.name));
+      if (contents !== null) assets.push({ relative, contents });
+    }
+  };
+  await walk(dir, '');
+  return assets.sort((a, b) => a.relative.localeCompare(b.relative));
+}
+
+/**
  * Run the pipeline up to planning. Writes nothing.
  *
- * @returns {Promise<{name, source, sha, skill, compiled, files, violations}>}
+ * @returns {Promise<{name, source, sha, skill, compiled, files, violations, droppedAssets}>}
  */
 export async function prepareInstall({ root, name, spec, targets, cacheDir, cwd = process.cwd() }) {
   const source = parseSource(spec);
@@ -94,16 +127,61 @@ export async function prepareInstall({ root, name, spec, targets, cacheDir, cwd 
   const resolvedName = name ?? skill.frontmatter.name ?? located.dirname;
   const violations = validateSkill(located.contents, { dirname: located.dirname });
 
+  // Bundled files ship with the skill and reach the agent the same way, so a
+  // bad one blocks the install rather than arriving unchecked.
+  const assets = await collectAssets(dirname(located.path));
+  for (const asset of assets) {
+    for (const item of validateAsset(asset.contents)) {
+      violations.push({ ...item, message: `${asset.relative}: ${item.message}` });
+    }
+  }
+
   if (violations.some((v) => v.severity === 'error')) {
-    return { name: resolvedName, source, sha, skill, compiled: null, files: [], violations };
+    return {
+      name: resolvedName,
+      source,
+      sha,
+      skill,
+      compiled: null,
+      files: [],
+      violations,
+      droppedAssets: [],
+    };
   }
 
   const compiled = compile(skill);
-  const files = targets.flatMap((targetId) =>
-    planEmit(targetId, { root, name: resolvedName, compiled, skill }),
-  );
 
-  return { name: resolvedName, source, sha, skill, compiled, files, violations };
+  // Two targets can legitimately share a path: codex writes the same
+  // .agents/skills layout as generic, plus an adapter. Selecting both is
+  // allowed, so collapse by path rather than writing the same bytes twice and
+  // recording a duplicate in the lockfile.
+  const byPath = new Map();
+  const dropped = new Set();
+  for (const targetId of targets) {
+    const target = targetById(targetId);
+    const carried = target?.carriesAssets ? assets : [];
+    if (assets.length > 0 && !target?.carriesAssets) dropped.add(targetId);
+    for (const file of planEmit(targetId, {
+      root,
+      name: resolvedName,
+      compiled,
+      skill,
+      assets: carried,
+    })) {
+      byPath.set(file.path, file);
+    }
+  }
+
+  return {
+    name: resolvedName,
+    source,
+    sha,
+    skill,
+    compiled,
+    files: [...byPath.values()],
+    violations,
+    droppedAssets: [...dropped].map((targetId) => ({ target: targetId, count: assets.length })),
+  };
 }
 
 /** Write the planned files and return the lock entry describing them. */

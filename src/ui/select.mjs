@@ -1,24 +1,15 @@
-// The terminal loop for a single-select prompt (installation scope, and any
-// future choose-exactly-one step). Every keypress goes straight into
-// src/ui/select-state.mjs's reduce(); this file only turns the state that
-// comes back into ANSI. That split is the same one src/ui/picker.mjs uses,
-// and for the same reason: it is what makes the behaviour testable without a
-// terminal.
-//
-// Terminal safety is the point of this file, exactly as it is in picker.mjs:
-// restore() runs on every exit path - confirming, cancelling, ctrl+c, a
-// thrown error, and stdin closing out from under the prompt alike.
+// The single-select frame (installation scope, and any future
+// choose-exactly-one step): what a frame looks like, not how a terminal
+// session is run. Every keypress goes straight into src/ui/select-state.mjs's
+// reduce(); src/ui/prompt.mjs owns the terminal loop - raw mode, the
+// render/reduce cycle, restoration on every exit path - shared with
+// src/ui/picker.mjs. That split is what makes the behaviour testable without
+// a terminal.
 
-import readline from 'node:readline';
-
-import { bold, dim, ESC } from '../ui.mjs';
+import { bold, dim } from '../ui.mjs';
 import { frameActive, frameLine } from './frame.mjs';
+import { runPrompt } from './prompt.mjs';
 import { initialState, reduce } from './select-state.mjs';
-
-const HIDE_CURSOR = `${ESC}[?25l`;
-const SHOW_CURSOR = `${ESC}[?25h`;
-const CLEAR_LINE = `${ESC}[2K`;
-const cursorUp = (n) => `${ESC}[${n}A`;
 
 const HINT = '↑/↓ to navigate • Enter: confirm';
 
@@ -44,142 +35,13 @@ function renderFrame(state, title) {
  * @returns {Promise<string|null>} the chosen item's id, or null when cancelled
  */
 export function pickOne(items, { input = process.stdin, output = process.stdout, title = 'Choose one' } = {}) {
-  // Never enter the loop off a TTY: there is no keypress stream to read from,
-  // and raw mode on a non-TTY stream either throws or does nothing useful.
-  if (!input.isTTY || !output.isTTY) return Promise.resolve(null);
-
-  return new Promise((resolvePromise, rejectPromise) => {
-    let state = initialState(items);
-    let linesWritten = 0;
-    let restored = false;
-
-    // Every step here is independently guarded, the same discipline
-    // picker.mjs's restore() uses: this runs from an error path as often as a
-    // clean one, so one step failing must never stop the rest from running.
-    //
-    // No unref() here - see picker.mjs's restore() for the full reasoning,
-    // which applies here unchanged. Short version: pause() alone already
-    // lets the process exit once nothing else is keeping the event loop
-    // alive, so an explicit unref() was redundant; worse, without a matching
-    // ref() on the next prompt's resume(), it silently killed the process
-    // mid-wizard the moment a later step rendered and started waiting for a
-    // keypress. That bug was invisible to tests driven by fake streams,
-    // which have no ref/unref at all.
-    function restore() {
-      if (restored) return;
-      restored = true;
-      try {
-        input.removeListener('keypress', onKeypress);
-        input.removeListener('close', onEnd);
-        input.removeListener('end', onEnd);
-        input.removeListener('error', onError);
-      } catch {
-        // ignore
-      }
-      try {
-        input.setRawMode(false);
-      } catch {
-        // Not fatal: the process may already be tearing down.
-      }
-      try {
-        output.write(SHOW_CURSOR);
-      } catch {
-        // stdout may already be gone (e.g. piped into something that closed)
-      }
-      try {
-        input.pause();
-      } catch {
-        // ignore
-      }
-    }
-
-    // Erases the frame this prompt drew, moving the cursor back to the line
-    // the frame started on. See picker.mjs's erase() for why: without it the
-    // caller's collapsed "done" line for this step lands below the
-    // still-on-screen live frame instead of in its place.
-    function erase() {
-      if (linesWritten === 0) return;
-      try {
-        output.write(cursorUp(linesWritten));
-        for (let index = 0; index < linesWritten; index += 1) {
-          output.write(`${CLEAR_LINE}\n`);
-        }
-        output.write(cursorUp(linesWritten));
-      } catch {
-        // stdout may already be gone; nothing left to erase for
-      }
-      linesWritten = 0;
-    }
-
-    function render() {
-      const frame = renderFrame(state, title);
-      if (linesWritten > 0) output.write(cursorUp(linesWritten));
-      const rows = Math.max(frame.length, linesWritten);
-      for (let index = 0; index < rows; index += 1) {
-        output.write(`${CLEAR_LINE}${frame[index] ?? ''}\n`);
-      }
-      if (rows > frame.length) output.write(cursorUp(rows - frame.length));
-      linesWritten = frame.length;
-    }
-
-    function finish(result) {
-      erase();
-      restore();
-      resolvePromise(result);
-    }
-
-    function onKeypress(_str, key) {
-      let next;
-      try {
-        next = reduce(state, key ?? {});
-      } catch (error) {
-        restore();
-        rejectPromise(error);
-        return;
-      }
-      state = next;
-
-      if (state.done) {
-        finish(state.cancelled ? null : state.chosen);
-        return;
-      }
-
-      try {
-        render();
-      } catch (error) {
-        restore();
-        rejectPromise(error);
-      }
-    }
-
-    // stdin closing or erroring out from under the prompt must resolve, not
-    // hang forever with raw mode still on. Treat it exactly like escape - a
-    // cancellation, not an error. See picker.mjs's onEnd for the full story.
-    function onEnd() {
-      finish(null);
-    }
-
-    function onError() {
-      finish(null);
-    }
-
-    try {
-      readline.emitKeypressEvents(input);
-      input.setRawMode(true);
-      input.resume();
-      // Paired with resume(), not with the unref() restore() no longer has
-      // (see the comment there): this is the defensive half of the pair, in
-      // case anything upstream of this prompt ever left stdin unrefed.
-      input.ref?.();
-      output.write(HIDE_CURSOR);
-      render();
-      input.on('keypress', onKeypress);
-      input.on('close', onEnd);
-      input.on('end', onEnd);
-      input.on('error', onError);
-    } catch (error) {
-      restore();
-      rejectPromise(error);
-    }
+  return runPrompt({
+    input,
+    output,
+    initialState: initialState(items),
+    reduce,
+    renderFrame: (state) => renderFrame(state, title),
+    isDone: (state) => state.done,
+    result: (state) => (state.cancelled ? null : state.chosen),
   });
 }

@@ -3,7 +3,7 @@
 // Colour is off when stdout is not a terminal and when NO_COLOR is set, so
 // piping into a file or a CI log produces clean text.
 
-const ESC = '\x1b';
+export const ESC = '\x1b';
 const enabled = process.stdout.isTTY && !process.env.NO_COLOR;
 
 const wrap = (open, close) => (text) =>

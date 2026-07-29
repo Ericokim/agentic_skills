@@ -28,7 +28,7 @@ process.stdout.on('error', (error) => {
   throw error;
 });
 
-const BOOLEAN_FLAGS = new Set(['dry-run', 'force', 'help', 'version']);
+const BOOLEAN_FLAGS = new Set(['dry-run', 'force', 'help', 'version', 'all']);
 
 /** Parse `command args --flags` without a dependency. */
 export function parseArgv(argv) {
@@ -79,6 +79,7 @@ ${bold('OPTIONS')}
   -n, --name <name>         name to install a source under
       --only <names>        add: install just these skills from a multi-skill
                              source (comma separated)
+      --all                 add: install every skill, skipping the picker
       --root <dir>          project root (default: the working directory)
       --cache <dir>         source cache (default: ~/.cache/agentic/sources)
       --top <n>             tokens: heaviest turns to show (default: 12)
@@ -87,6 +88,14 @@ ${bold('OPTIONS')}
       --force               overwrite installed files that were edited by hand
   -h, --help                show this
   -v, --version             show the versions
+
+${bold('PICKER')}
+  Running "agentic add <source>" in a terminal, against a source with more
+  than one skill and no --only, --name, or --all, opens an interactive
+  picker: ↑↓ or j/k move, space toggles, a toggles all, enter confirms,
+  esc or ctrl+c cancels. Typing filters by name. Cancelling installs
+  nothing and exits clean. Piped or non-interactive runs skip it and
+  install everything, same as --all.
 
 ${bold('SOURCES')}
   github:owner/repo#v1.0.0            a tag, branch, or commit
@@ -150,6 +159,7 @@ export async function main(argv) {
         spec: args[0] ?? null,
         name: flags.name ?? null,
         only: flags.only ?? null,
+        all: Boolean(flags.all),
       });
     case 'update':
       return update({ ...shared, name: args[0] ?? null });

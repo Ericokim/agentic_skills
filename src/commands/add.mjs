@@ -1,11 +1,14 @@
 import { join } from 'node:path';
 
 import { resolveSource } from '../fetch.mjs';
+import { readIfPresent } from '../fs-util.mjs';
 import { discoverSkills, installOne } from '../install.mjs';
 import { readLock, writeLock } from '../lock.mjs';
 import { MANIFEST_FILE, readManifest, setSkill, writeManifest } from '../manifest.mjs';
+import { parseSkill } from '../skill.mjs';
 import { parseSource } from '../source.mjs';
 import { bold, dim, line, reportViolations, symbol } from '../ui.mjs';
+import { pickSkills } from '../ui/picker.mjs';
 
 /**
  * What "add <source>" actually installs.
@@ -44,6 +47,35 @@ async function planRequests({ spec, name, only, cacheDir, cwd }) {
 }
 
 /**
+ * Descriptions to show the picker, one per discovered skill.
+ *
+ * Reads each skill's frontmatter straight off disk rather than threading it
+ * through prepareInstall, because the picker has to show every discovered
+ * skill's description before any of them are actually resolved and compiled.
+ * A skill whose SKILL.md cannot be read or parsed shows an empty description
+ * instead of taking the whole picker down with it.
+ */
+async function skillDescriptions(found) {
+  const items = [];
+  for (const skill of found) {
+    let description = '';
+    try {
+      const contents = await readIfPresent(join(skill.path, 'SKILL.md'));
+      if (contents !== null) {
+        const parsed = parseSkill(contents);
+        if (typeof parsed.frontmatter.description === 'string') {
+          description = parsed.frontmatter.description;
+        }
+      }
+    } catch {
+      description = '';
+    }
+    items.push({ name: skill.name, description });
+  }
+  return items;
+}
+
+/**
  * Install one skill, every skill in the manifest when no spec is given, or
  * every skill a multi-skill source provides.
  *
@@ -51,7 +83,7 @@ async function planRequests({ spec, name, only, cacheDir, cwd }) {
  * reported and skipped with a non zero exit, so a CI run that installs skills
  * fails loudly rather than shipping a skill that lies.
  */
-export async function add({ root, spec, name, only, targets, cacheDir, dryRun, force, cwd }) {
+export async function add({ root, spec, name, only, targets, cacheDir, dryRun, force, cwd, all = false }) {
   const manifest = await readManifest(root);
   if (!manifest) {
     line(`${symbol.fail} no ${MANIFEST_FILE} here, so run ${bold('agentic init')} first.`);
@@ -69,6 +101,29 @@ export async function add({ root, spec, name, only, targets, cacheDir, dryRun, f
     ({ requests, found } = planned);
   } else {
     requests = Object.entries(manifest.skills).map(([key, value]) => ({ spec: value, name: key }));
+  }
+
+  // A source that offers a choice gets one, in a terminal, unless the caller
+  // already said what it wants via --only, --name, or --all. Cancelling out
+  // of the picker installs nothing and still exits clean: a person browsing
+  // and changing their mind is not an error.
+  if (
+    found &&
+    found.length > 1 &&
+    !only &&
+    !name &&
+    !all &&
+    process.stdin.isTTY &&
+    process.stdout.isTTY
+  ) {
+    const items = await skillDescriptions(found);
+    const chosen = await pickSkills(items);
+    if (chosen === null || chosen.length === 0) {
+      line(`${symbol.warn} cancelled: nothing installed`);
+      return 0;
+    }
+    const chosenNames = new Set(chosen);
+    requests = requests.filter((request) => chosenNames.has(request.name));
   }
 
   if (requests.length === 0) {

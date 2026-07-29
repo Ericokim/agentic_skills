@@ -35,14 +35,16 @@ Run this in a **real project**, not an empty folder. These skills read your code
 ```bash
 cd your-project
 
-npx -y github:Ericokim/agentic_skills#v0.1.0 init
-npx -y github:Ericokim/agentic_skills#v0.1.0 add github:Ericokim/agentic_skills/skills/audit#v0.1.0
+npx -y github:Ericokim/agentic_skills#v0.2.0 init
+npx -y github:Ericokim/agentic_skills#v0.2.0 add github:Ericokim/agentic_skills#v0.2.0
 ```
+
+The second command finds every skill in the source and opens a picker to choose from. Add `--all` to take them all without being asked, which is also what happens automatically when there is no terminal to prompt on.
 
 ```text
 ✓ wrote skills.json
   targets: claude-code (detected)
-✓ audit github:Ericokim/agentic_skills/skills/audit#v0.1.0 · 1 file
+✓ audit github:Ericokim/agentic_skills/skills/audit#v0.2.0 · 1 file
 ```
 
 Then run `/audit` in your agent. It reads your manifests and CI config, **runs your build and test commands rather than assuming they work**, and writes `AGENTS.md` with what is actually true. Anything it could not verify is recorded as unknown rather than guessed.
@@ -51,13 +53,13 @@ Then run `/audit` in your agent. It reads your manifests and CI config, **runs y
 
 **Run it from GitHub, not npm.** `agentic` and `agentic-skills` are taken on npm by unrelated packages, so `npx agentic` would run somebody else's code. Installed globally or as a dev dependency the command is just `agentic`, which is how it is written from here on.
 
-**Pin the tag.** `#v0.1.0` fixes both the tool and the skills to one release. Drop it and every run fetches whatever is on `main` that day, so two people on the same team can get different tools and different skills. `-y` skips npx's install prompt, which otherwise blocks any script or CI job.
+**Pin the tag.** `#v0.2.0` fixes both the tool and the skills to one release. Drop it and every run fetches whatever is on `main` that day, so two people on the same team can get different tools and different skills. `-y` skips npx's install prompt, which otherwise blocks any script or CI job.
 
 | | Use |
 |---|---|
 | Trying it out | `npx -y github:Ericokim/agentic_skills init` |
-| Team or CI | `npx -y github:Ericokim/agentic_skills#v0.1.0 init` |
-| Daily driver | `npm i -D github:Ericokim/agentic_skills#v0.1.0`, then `agentic` |
+| Team or CI | `npx -y github:Ericokim/agentic_skills#v0.2.0 init` |
+| Daily driver | `npm i -D github:Ericokim/agentic_skills#v0.2.0`, then `agentic` |
 
 ---
 
@@ -442,6 +444,33 @@ CI can gate on it.
 
 Your `AGENTS.md` is never overwritten. The run writes `AGENTS.generated.md` and
 shows what would change, including anything you would lose.
+
+### Answers are verified, not trusted
+
+Generation runs in two phases. The first writes a draft and a brief listing what
+the repository could not answer for itself. An agent answers those, each with a
+citation, and the second phase checks every one:
+
+```bash
+agentic context                        # draft plus a brief of what is missing
+agentic context --answers answers.json # verify the answers, then emit
+```
+
+The CLI re-reads each cited file and confirms the claimed value is actually
+there. Anything it cannot confirm becomes `Unknown` and is reported:
+
+```text
+✗ 2 fields downgraded to Unknown - the claim could not be backed by its citation:
+    ✗ OUT_OF_SCOPE: not found in README.md:3
+    ✗ ARCHITECTURE_SUMMARY: no citation was given
+```
+
+It exits non zero when anything was downgraded, so a pipeline can gate on it.
+Facts the CLI read itself are never offered to a model and never overwritten by
+one, so a model cannot invent a version number or a command.
+
+This is the difference between asking a model not to hallucinate and checking
+whether it did.
 
 ---
 

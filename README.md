@@ -237,9 +237,9 @@ agentic init                create skills.json, detecting the agent tools in use
 agentic add [source]        install a skill, or every skill in skills.json
 agentic update [name]       re-resolve and recompile, showing what changed
 agentic remove <name>       delete a skill and the files it owns
-agentic list                installed skills, sources, and drift
+agentic list                installed skills, drift, and anything that is wrong
 agentic validate [path]     check skill sources against the standard
-agentic doctor              report every mismatch between declared and installed
+agentic tokens [file]       where the tokens went in a real session
 ```
 
 Options: `-t, --target`, `-n, --name`, `--root`, `--cache`, `--dry-run`,
@@ -286,7 +286,7 @@ and publishing is pushing.
 ```
 
 The lockfile hashes the **emitted** file, not the source. That is what lets
-`agentic doctor` tell that someone hand edited an installed skill, so an update
+`agentic list` tell that someone hand edited an installed skill, so an update
 warns instead of silently overwriting work a person did on purpose:
 
 ```

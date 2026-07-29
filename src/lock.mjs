@@ -2,7 +2,7 @@
 //
 // The integrity hash covers the EMITTED file, not the source. That is the whole
 // point: hashing the source would tell us the upstream skill changed, which is
-// what a ref already tells us. Hashing what we wrote lets `agentic doctor` see
+// what a ref already tells us. Hashing what we wrote lets `agentic list` see
 // that someone hand edited an installed skill, so an update can warn instead of
 // silently overwriting work that a person did on purpose.
 

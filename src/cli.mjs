@@ -10,10 +10,10 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { add } from './commands/add.mjs';
-import { doctor } from './commands/doctor.mjs';
 import { init } from './commands/init.mjs';
 import { list } from './commands/list.mjs';
 import { remove } from './commands/remove.mjs';
+import { tokens } from './commands/tokens.mjs';
 import { update } from './commands/update.mjs';
 import { validate as validateCommand } from './commands/validate.mjs';
 import { DEFAULT_CACHE_DIR } from './fetch.mjs';
@@ -70,15 +70,17 @@ ${bold('COMMANDS')}
   add [source]              install a skill, or every skill in skills.json
   update [name]             re-resolve and recompile, showing what changed
   remove <name>             delete a skill and the files it owns
-  list                      installed skills, sources, and drift
+  list                      installed skills, drift, and anything that is wrong
   validate [path]           check skill sources against the standard
-  doctor                    report every mismatch between declared and installed
+  tokens [file.jsonl]       where the tokens went in a real session
 
 ${bold('OPTIONS')}
   -t, --target <id>         override targets (repeatable, or comma separated)
   -n, --name <name>         name to install a source under
       --root <dir>          project root (default: the working directory)
       --cache <dir>         source cache (default: ~/.cache/agentic/sources)
+      --top <n>             tokens: heaviest turns to show (default: 12)
+      --project <dir>       tokens: encoded transcript directory to read
       --dry-run             plan the work and write nothing
       --force               overwrite installed files that were edited by hand
   -h, --help                show this
@@ -156,8 +158,13 @@ export async function main(argv) {
       return list(shared);
     case 'validate':
       return validateCommand({ root, target: resolve(args[0] ?? 'skills') });
-    case 'doctor':
-      return doctor(shared);
+    case 'tokens':
+      return tokens({
+        root,
+        file: args[0] ?? null,
+        project: flags.project ?? null,
+        top: flags.top ?? null,
+      });
     default:
       fail(`unknown command "${command}"`);
       line(dim('run agentic --help for the list'));

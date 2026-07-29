@@ -126,7 +126,7 @@ incoherent as a whole.
 
 `STANDARD_VERSION` in `src/standard/index.mjs` is bumped when injected prose or
 invariants change. Every lockfile entry records the version it compiled against,
-so `agentic doctor` can report an installed skill that predates a change:
+so `agentic list` can report an installed skill that predates a change:
 
 ```
 develop  compiled against standard 1.0.0, current is 1.1.0

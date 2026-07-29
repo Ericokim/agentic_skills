@@ -26,6 +26,7 @@
     "test": "node --test \"test/**/*.test.mjs\"",
     "test:watch": "node --test --watch \"test/**/*.test.mjs\"",
     "validate": "node src/cli.mjs validate skills/",
+    "tokens": "node src/cli.mjs tokens",
     "check": "npm run test && npm run validate"
   },
   "author": "Eric",

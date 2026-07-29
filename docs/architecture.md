@@ -48,6 +48,7 @@ path minus the final call rather than a parallel implementation of it.
 | `targets/*.mjs` | Path and dialect per agent tool. No logic. |
 | `manifest.mjs` `lock.mjs` | `skills.json` and `skills.lock` |
 | `install.mjs` | The pipeline, assembled, plus drift detection |
+| `commands/tokens.mjs` | Session transcript accounting, the only module not part of the install pipeline |
 | `ui.mjs` | Terminal output |
 
 ## Adding a rule family

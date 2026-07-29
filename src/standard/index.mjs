@@ -12,7 +12,7 @@ import * as done from './done.mjs';
 
 /**
  * Bumped when injected prose or invariants change. Recorded in every lockfile
- * entry, so `agentic doctor` can tell an installed skill that predates a
+ * entry, so `agentic list` can tell an installed skill that predates a
  * standard change from one that is current.
  */
 export const STANDARD_VERSION = '1.0.0';

@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚙️ agentic
+# ⚙️ Agentic Skills
 
 ### The package manager for Agent Skills that **compiles and refuses**
 

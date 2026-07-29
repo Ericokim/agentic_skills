@@ -14,7 +14,7 @@
 
 - **Zero dependencies, permanently.** No argument parser, no YAML parser, no test framework. Not even a dev dependency.
 - **Node 20+**, ESM only (`"type": "module"`), files end in `.mjs`.
-- **Test command is `npm test`**, which runs `node --test "test/**/*.test.mjs"`. A bare directory argument does not work.
+- **Test command is `npm test`**, which runs bare `node --test` and relies on Node's own test file discovery. Do not pass a quoted glob: Node only expands one itself from version 22, so a glob breaks the Node 20 leg of CI. Do not pass a bare directory either, which Node treats as a module to load.
 - **Pure by default.** Only `snapshot.mjs`, the verifier's injected reader, and the emitter may touch the filesystem. Everything else takes data and returns data.
 - **A module owns its text and its checks together**, the way `src/standard/*.mjs` does. Never split a section's prose from its predicate.
 - **No em dashes or en dashes** in anything under `skills/`. `npm run validate` fails the build on them.

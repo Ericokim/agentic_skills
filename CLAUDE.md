@@ -18,7 +18,7 @@ declaration is incoherent, and validation runs before anything is written.
 ## Commands
 
 ```bash
-npm test          # node:test, glob required (node --test "test/**/*.test.mjs")
+npm test          # node --test, using its own file discovery
 npm run validate  # the standard against skills/
 npm run check     # both, and what CI runs
 node src/cli.mjs <command>   # run the CLI from source

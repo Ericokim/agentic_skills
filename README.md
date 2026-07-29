@@ -16,7 +16,7 @@
 [![Cursor](https://img.shields.io/badge/Cursor-partial-6E7681)](https://cursor.com)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-open_format-1f6feb)](https://agentskills.io)
 
-**[Quick start](#-quick-start) · [How it works](#-what-makes-it-different) · [The standard](#-the-standard) · [Skills](#-the-nine-workflow-skills) · [CLI](#-commands) · [Docs](#-contents)**
+**[Quick start](#-quick-start) · [How it works](#-what-makes-it-different) · [The standard](#-the-standard) · [Skills](#-the-nine-skills) · [Installing](#-installing) · [FAQ](#-faq)**
 
 </div>
 
@@ -24,94 +24,21 @@
 
 ## ⚡ Quick start
 
-Needs Node 20+, git, and one agent tool (Claude Code, Codex, or Cursor):
-
-```bash
-node --version && git --version
-```
-
-Run this in a **real project**, not an empty folder. These skills read your code.
+Needs Node 20+, git, and one agent tool (Claude Code, Codex, or Cursor).
 
 ```bash
 cd your-project
 
 # Claude Code (installs into .claude/skills, then restart Claude Code)
-npx -y github:Ericokim/agentic_skills#v0.2.0 add -a claude-code
+npx -y github:Ericokim/agentic_skills add -a claude-code
 
 # Generic .agents/skills, read by Codex and other agents
-npx -y github:Ericokim/agentic_skills#v0.2.0 add
+npx -y github:Ericokim/agentic_skills add
 ```
 
-**Or install with the third party `skills` package.** This repo's skill layout already works with it unmodified:
+On a terminal, a source with more than one skill opens a picker to choose from; with no terminal to prompt on, every skill installs instead.
 
-```bash
-npx -y skills@latest add Ericokim/agentic_skills -a claude-code
-```
-
-It gives a familiar installer with many agent clients, and copies the skills as authored. `agentic` compiles the standard into every skill instead, and refuses to install one whose declaration is incoherent. Measured on the same skill:
-
-| | npx skills | agentic |
-|---|---|---|
-| size | 3,066 B | 7,828 B |
-| leaks `standard:` frontmatter | yes | no |
-| evidence classification injected | no | yes |
-| anti-hallucination rules injected | no | yes |
-| TDD loop injected | no | yes |
-| definition of done injected | no | yes |
-
-Two different jobs: one installs skills as written, the other compiles a standard into them.
-
-**Run it from GitHub, not npm.** `agentic` and `agentic-skills` are already taken on npm by unrelated packages. Add it as a dependency instead (`npm i -D github:Ericokim/agentic_skills#v0.2.0`) and the bare `agentic` command works, which is how the rest of this README writes it.
-
-**Pin the tag.** `#v0.2.0` fixes both the tool and the skills to one release, so a whole team gets the same thing instead of whatever `main` happens to be that day. `-y` skips npx's install prompt, which otherwise blocks any script or CI job.
-
-**Picking skills.** On a terminal, a source with more than one skill opens a picker to choose from. `--all` takes every skill without asking, which is also what happens automatically when there is no terminal to prompt on.
-
-```text
-✓ wrote skills.json
-  targets: claude-code (from --target)
-no source given, installing this tool's own skills from github:Ericokim/agentic_skills#v0.2.0
-Found 9 skills in github:Ericokim/agentic_skills#v0.2.0
-
-✓ architect  2 files
-✓ audit      1 file
-✓ check      3 files
-✓ debug      1 file
-✓ develop    2 files
-✓ document   5 files
-✓ scope      2 files
-✓ sync       1 file
-✓ test       1 file
-
-✓ 9 skills installed, 0 failed
-```
-
-Then run `/audit` in your agent. It reads your manifests and CI config, **runs your build and test commands rather than assuming they work**, and writes `AGENTS.md` with what is actually true. Anything it could not verify is recorded as unknown rather than guessed.
-
-`add` writes `skills.json` on its first run, detecting your agent tools from `.claude/`, `.agents/`, and `.cursor/`. Override with `-a claude-code,codex` if it guesses wrong.
-
----
-
-## 📖 Contents
-
-| | Section | What you get |
-|:--:|---|---|
-| 🎯 | [What makes it different](#-what-makes-it-different) | The two problems this solves, with output |
-| 📐 | [The standard](#-the-standard) | Five rule families and the invariants between them |
-| 🧩 | [The nine workflow skills](#-the-nine-workflow-skills) | Usage and a use case for each |
-| ⌨️ | [Commands](#-commands) | Full CLI reference, options, exit codes |
-| 🔗 | [Sources](#-sources) · [Targets](#-targets) | Where skills come from, where they go |
-| 🔒 | [Manifest and lockfile](#-manifest-and-lockfile) | `skills.json`, `skills.lock`, drift detection |
-| 🚀 | [Adding it to an existing project](#-adding-it-to-an-existing-project) | Adoption, collisions, what gets written |
-| 👥 | [Working as a team](#-working-as-a-team) | Reproducible installs, what to commit |
-| 💰 | [Token cost](#-token-cost) | Budgets, and measuring a real session |
-| 🌍 | [Portability](#-portability) | Rules that keep skills working everywhere |
-| 🩹 | [Troubleshooting](#-troubleshooting) | Every error message, and its fix |
-| 🚧 | [What this will not do](#-what-this-will-not-do) · [FAQ](#-faq) | The limits, stated plainly |
-| ✍️ | [Authoring a skill](#-authoring-a-skill) | Writing one that passes |
-| 🛠️ | [Development](#-development) | Tests, checks, architecture |
-
-**Deep dives:** [`docs/standard.md`](docs/standard.md) · [`docs/authoring.md`](docs/authoring.md) · [`docs/architecture.md`](docs/architecture.md)
+It runs from GitHub, not npm: `agentic` and `agentic-skills` are already taken there by unrelated packages.
 
 ---
 
@@ -119,9 +46,7 @@ Then run `/audit` in your agent. It reads your manifests and CI config, **runs y
 
 A skill is a prompt that ships, and it loads into context on every run. That creates two problems.
 
-### ❶ The duplication problem
-
-Shared rules (how to cite evidence, what counts as done) must appear in every skill, because each installed skill stands alone. The usual answer is pasting the block everywhere and linting that the copies stayed identical, which is a build step performed by a linter. Here you declare, and the compiler writes:
+**Duplication.** Shared rules (how to cite evidence, what counts as done) have to appear in every skill, because each installed skill stands alone. The usual fix is pasting the block everywhere and linting that the copies stayed identical. Here you declare, and the compiler writes:
 
 ```yaml
 # what you author                        # what gets installed
@@ -133,9 +58,7 @@ standard:                                ## Evidence classification    <- inject
                                          ## Definition of done         <- injected
 ```
 
-### ❷ The incoherence problem
-
-A skill can promise a definition of done with no way to cite evidence, or independent review with no way to spawn a reviewer. Both look fine line by line. The installer checks the combination:
+**Incoherence.** A skill can promise a definition of done with no way to cite evidence, or independent review with no way to spawn a reviewer. Both look fine line by line. The installer checks the combination:
 
 ```bash
 agentic add ./skills/liar
@@ -152,6 +75,25 @@ agentic add ./skills/liar
 ```
 
 Validation runs before anything is written, so a failing skill never lands half installed.
+
+**Compared to a plain installer.** The third party `skills` package works with this repo's skill layout unmodified:
+
+```bash
+npx -y skills@latest add Ericokim/agentic_skills -a claude-code
+```
+
+It copies skills as authored. `agentic` compiles the standard into every skill instead, and refuses to install one whose declaration is incoherent. Measured on the same skill:
+
+| | npx skills | agentic |
+|---|---|---|
+| size | 3,066 B | 7,828 B |
+| leaks `standard:` frontmatter | yes | no |
+| evidence classification injected | no | yes |
+| anti-hallucination rules injected | no | yes |
+| TDD loop injected | no | yes |
+| definition of done injected | no | yes |
+
+Two different jobs: one installs skills as written, the other compiles a standard into them.
 
 ---
 
@@ -175,11 +117,13 @@ Five rule families. Every skill declares a level for all five, explicitly. No de
 | `tdd` needs `evidence: strict` | The red step is only real if the failing run is shown |
 | `review: independent` needs a subagent capability | A skill cannot promise a reviewer it has no way to spawn |
 
-Normative detail: [`docs/standard.md`](docs/standard.md).
+In Claude Code, `.claude/agents/` ships the `scout` and `reviewer` helpers that satisfy that last one; other clients ignore that directory.
+
+Normative detail, and the portability rules `validate` also enforces: [`docs/standard.md`](docs/standard.md) and [`docs/authoring.md`](docs/authoring.md).
 
 ---
 
-## 🧩 The nine workflow skills
+## 🧩 The nine skills
 
 One skill per phase. Run only the ones a change needs, in any order.
 
@@ -187,61 +131,19 @@ One skill per phase. Run only the ones a change needs, in any order.
 idea → /scope → /audit → /architect → /develop → /check verify → /test → /check review → /document → /sync
 ```
 
-State lives in files (a scope, specs, AGENTS.md, tests), not in a chat session, so work survives across sessions and people.
+State lives in files (a scope, specs, AGENTS.md, tests), not in a chat session, so work survives across sessions and people. One writer per artifact keeps two skills from fighting over the same file.
 
 | | Skill | Phase | What it does | Owns |
 |:--:|---|---|---|---|
-| 🗺️ | [`scope`](#scope) | Plan | Turns an idea into a coarse, ordered plan and keeps it true as work ships | `docs/scope/` |
+| 🗺️ | [`scope`](#scope) | Plan | Turns an idea into a coarse, ordered plan with a depth (Prototype/Alpha/Beta/GA) that sets how much checking follows `/develop`, and keeps it true as work ships | `docs/scope/` |
 | 🔎 | [`audit`](#audit) | Context | Writes the AGENTS.md context files every other skill reads | `AGENTS.md` |
-| 📐 | [`architect`](#architect) | Design | Makes one load bearing decision and writes it as a spec | `docs/specs/` |
-| 🔨 | [`develop`](#develop) | Build | Builds a feature from its spec, then advances the scope | your source |
+| 📐 | [`architect`](#architect) | Design | Makes one load bearing decision and writes it as a spec, with acceptance criteria the rest of the loop builds to | `docs/specs/` |
+| 🔨 | [`develop`](#develop) | Build | Builds a feature from its spec, routing to `/architect` for any load bearing decision no spec covers, then advances the scope | your source |
 | ✅ | [`check`](#check) | Verify | Confirms a change before merge, in two modes | `docs/reviews/` |
 | 🧪 | [`test`](#test) | Verify | Writes a test suite for what you just changed | your tests |
 | 📝 | [`document`](#document) | Ship | Writes the human facing prose from the real diff | PR, changelog |
 | 🔄 | [`sync`](#sync) | Ship | Reconciles AGENTS.md, the scope, and spec statuses | statuses |
 | 🐛 | [`debug`](#debug) | Any time | Finds the root cause and makes the minimal fix | the fix |
-
-One writer per artifact, which is what keeps two skills from fighting over the same file.
-
-### Where to start
-
-| Situation | Start with | Why |
-|---|---|---|
-| **Existing codebase** | `/audit` → `/scope` → the loop | Every skill reads AGENTS.md, and `/scope` would otherwise plan against a project it has not read |
-| **New product** | `/scope` → `/architect` → scaffold → `/audit` → the loop | The stack is decided and the project exists before `/audit` runs, so it reads something real rather than describing intentions as facts |
-| **One small change** | Only what it needs | A typo is `/develop`. A bug is `/debug`. A change nobody will review needs no `/document` |
-| **Monorepo** | `/audit <workspace>` per package | Each workspace gets its own AGENTS.md with its own commands. One root file describing five packages describes none of them |
-
-**The feature loop**, once the context exists:
-
-```
-/architect → /develop → /check verify → /test → /check review → /document → /sync
-```
-
-`/scope` sets a depth for the project that you can override per feature. It is a suggested checking tail after `/develop`, never a track you are locked onto:
-
-| Depth | Suggested after `/develop` |
-|---|---|
-| `Prototype` | nothing, self checked, for throwaway work |
-| `Alpha` | `/check verify` |
-| `Beta` | adds `/test` |
-| `GA` | adds `/check review` and `/document` |
-
-### The thread that ties the stages together
-
-`/architect` writes acceptance criteria into the spec. `/develop` builds to them. `/check verify` proves each one against the running app. `/test` turns them into the first tests. `/document` describes what they delivered.
-
-That thread is why the spec matters more than any other artifact. Without it, each stage invents its own idea of what "working" means, and they quietly disagree.
-
-### The spec gate
-
-`/develop` asks one question before writing code: **would building this mean inventing a load bearing decision that no spec records?** If yes, it stops and routes to `/architect`.
-
-Load bearing means changing it later means changing code in many places: a stack, a data model, a provider, an auth boundary. Cheap to reverse needs no spec.
-
-You can override. The override is honored and it is not free: the assumption is written as an `Assumed` spec and flagged, so a decision made under time pressure lands in the repo rather than a chat log nobody rereads. The flag never blocks you declaring the feature done.
-
-The gate is layered, not magic. `/architect` names the source of every value a feature must produce, so gaps surface at design time, and `/develop` checks that coverage again before building. Together those catch most of it. Behavioural correctness is caught behind them by `/check verify` and `/test`.
 
 <details open>
 <summary><b>Usage and a use case for each</b></summary>
@@ -285,8 +187,8 @@ The gate is layered, not magic. `/architect` names the source of every value a f
 
 ```bash
 /check verify         # drive the real app against the spec
-/check review         # a fresh reader on the diff
-/check                # asks which, never guesses
+/check review          # a fresh reader on the diff
+/check                 # asks which, never guesses
 ```
 
 > **Use case.** Your tests are green but you have not seen the feature work. `/check verify` starts the app and drives every acceptance criterion through the real interface. Green tests prove assertions hold; they do not prove a specced page was ever built.
@@ -295,7 +197,7 @@ The gate is layered, not magic. `/architect` names the source of every value a f
 
 ```bash
 /test                 # targets uncommitted changes
-/test src/search      # or a path
+/test src/search       # or a path
 ```
 
 > **Use case.** You just fixed a parser and want tests that would actually catch the regression. `/test` picks a strategy per file (happy path, boundaries, error states, accessibility) and runs the full suite, not only the new tests.
@@ -312,7 +214,7 @@ The gate is layered, not magic. `/architect` names the source of every value a f
 #### sync
 
 ```bash
-/sync                 # the last step, around merge
+/sync                  # the last step, around merge
 ```
 
 > **Use case.** Your change moved a directory and added a dependency, so AGENTS.md is now subtly wrong for everyone. `/sync` adds the lines that are missing and rewrites only single lines it owns. It never touches prose a person wrote.
@@ -329,7 +231,9 @@ The gate is layered, not magic. `/architect` names the source of every value a f
 
 ---
 
-## ⌨️ Commands
+## 🚀 Installing
+
+### Commands
 
 | | Command | Does | Writes |
 |:--:|---|---|:--:|
@@ -362,7 +266,11 @@ The gate is layered, not magic. `/architect` names the source of every value a f
 
 `list` and `validate` exit non zero when something is wrong, so either works as a CI or pre commit check. `validate` is the one to gate on: it runs the same code path `add` does, so a green validate means installable.
 
-### 🔗 Sources
+Installing only adds: it writes `skills.json`, `skills.lock`, and the skill directories, and never edits or deletes anything already in the repo. A skill installs under its own name, so a collision with one you already have is reported by `list` rather than silently overwritten.
+
+`agentic validate .claude/skills` over an **installed** directory does the sensible thing: installed skills are compiled output, so they are checked against the rules that still apply once compiled (parse, name, budget, prose), and are not asked for the standard declaration the compiler deliberately stripped.
+
+### Sources
 
 ```bash
 agentic add github:owner/repo#v1.0.0          # a tag, branch, or commit
@@ -371,9 +279,9 @@ agentic add git+https://host/team/skills.git  # any git remote
 agentic add ./local/skill                     # a directory on this machine
 ```
 
-No registry service. A source is a git repo or a path, a version is a git ref, and publishing is pushing.
+No registry service. A source is a git repo or a path, a version is a git ref, and publishing is pushing. `git` is the only external command this tool runs, and it behaves the same on macOS, Linux, and Windows.
 
-### 🎛️ Targets
+### Targets
 
 | Target | Writes to | Detected from | Bundled files |
 |---|---|---|---|
@@ -384,18 +292,9 @@ No registry service. A source is a git repo or a path, a version is a git ref, a
 
 `init` detects at most one target per directory: `codex` writes the same `.agents` layout as `generic`, so detecting both would plan the same file twice. Add the Codex picker adapter with `-t codex` when you want it.
 
-**Bundled files travel with the skill.** A skill can ship mode files and templates beside its `SKILL.md` and reference them by relative path, and those files install with it. Cursor is the exception, being one flat file with nowhere to put a sibling, and it says so rather than leaving an agent to find a file missing mid task:
+**Bundled files travel with the skill.** A skill can ship mode files and templates beside its `SKILL.md` and reference them by relative path, and those files install with it. Cursor is the exception, being one flat file with nowhere to put a sibling: `agentic add ./skills/check -t cursor` installs the `SKILL.md` and reports which bundled files were left out, rather than leaving an agent to find one missing mid task.
 
-```bash
-agentic add ./skills/check -t cursor
-```
-
-```text
-✓ check · 1 file
-    ! cursor cannot carry bundled files, so 2 were left out and this skill will be incomplete there
-```
-
-### 🔒 Manifest and lockfile
+### skills.json and skills.lock
 
 ```jsonc
 // skills.json   the intent, hand editable
@@ -410,100 +309,9 @@ agentic add ./skills/check -t cursor
                "files": { ".claude/skills/develop/SKILL.md": "sha256-..." } } }
 ```
 
-The lockfile hashes the **emitted** file, not the source. That is what lets `agentic list` tell that someone hand edited an installed skill, so an update warns instead of silently overwriting work a person did on purpose:
+The lockfile hashes the **emitted** file, not the source. That is what lets `agentic list` tell that someone hand edited an installed skill, so re-running `agentic add` on it warns and leaves the edit alone instead of silently overwriting it; reinstall over it with `--force`.
 
-```bash
-agentic add ./skills/develop
-```
-
-```text
-! develop has local edits, so it was left alone:
-    .claude/skills/develop/SKILL.md
-    reinstall over them with --force
-```
-
----
-
-## 🚀 Adding it to an existing project
-
-| | |
-|---|---|
-| **It adds, never modifies** | Installing writes `skills.json`, `skills.lock`, and the skill directories. Nothing already in the repo is edited or deleted, including skills you already had |
-| **Names have to be free** | A skill installs under its own name, so an existing skill called `check` would collide. `list` shows what is installed and from where |
-| **`/audit` comes first** | It writes the AGENTS.md every other skill reads. `/scope` first would plan against a project it has not read |
-
-### 🔍 Checking your own installed skills
-
-`validate` over an installed directory does the sensible thing. Installed skills are compiled output, so they are held to the rules that still apply once compiled (parse, name, budget, prose) and are not asked for a standard declaration the compiler deliberately stripped:
-
-```bash
-agentic validate .claude/skills
-```
-
-```text
-✓ 9 skills and 17 bundled files checked against standard 1.0.0, all pass
-  9 of these are installed skills, checked against the rules that still apply once compiled
-  to check declarations and invariants, validate the source they came from
-```
-
----
-
-## 📄 Generating project context
-
-Skills know how to work. `AGENTS.md` is how they learn about *your* project.
-
-```bash
-agentic profile                     # what was detected, and the file that proved it
-agentic context                     # plan an AGENTS.md: draft plus a brief of what is missing
-agentic context --answers <file>    # verify cited answers, write AGENTS.generated.md
-```
-
-Sections are chosen from evidence, so a library gets 14 blocks and a pipeline
-application gets 28. A section that does not apply is absent rather than filled
-with `Unknown`.
-
-Every fact the repository already states is pre-filled without a model
-involved. Everything else is answered by `/audit` with a citation, in a JSON
-file shaped `{"NAME": {"value": "...", "evidence": ["path:1-3"]}}`. Passing
-that file to `--answers` does not take the answer's word for it: the CLI
-re-reads every citation itself, and a value survives only when the file it
-names still contains it. A value that cannot be verified becomes `Unknown`,
-and the run reports every field it downgraded and why, then exits non zero so
-CI can gate on it.
-
-Your `AGENTS.md` is never overwritten. The run writes `AGENTS.generated.md` and
-shows what would change, including anything you would lose.
-
-### Answers are verified, not trusted
-
-Generation runs in two phases. The first writes a draft and a brief listing what
-the repository could not answer for itself. An agent answers those, each with a
-citation, and the second phase checks every one:
-
-```bash
-agentic context                        # draft plus a brief of what is missing
-agentic context --answers answers.json # verify the answers, then emit
-```
-
-The CLI re-reads each cited file and confirms the claimed value is actually
-there. Anything it cannot confirm becomes `Unknown` and is reported:
-
-```text
-✗ 2 fields downgraded to Unknown - the claim could not be backed by its citation:
-    ✗ OUT_OF_SCOPE: not found in README.md:3
-    ✗ ARCHITECTURE_SUMMARY: no citation was given
-```
-
-It exits non zero when anything was downgraded, so a pipeline can gate on it.
-Facts the CLI read itself are never offered to a model and never overwritten by
-one, so a model cannot invent a version number or a command.
-
-This is the difference between asking a model not to hallucinate and checking
-whether it did.
-
----
-
-## 👥 Working as a team
+### Team usage
 
 Commit `skills.json` and `skills.lock`. Let the installed directories be ignored, the way you would treat `node_modules`:
 
@@ -520,65 +328,33 @@ agentic add        # no argument: install everything in skills.json
 
 The lockfile records the resolved commit and the standard version per skill, so this is reproducible rather than "whatever is on main today".
 
-**The injected blocks come from the version of the tool you run**, not from the skill source. Two people on the same skill commit get different installed text if they run different versions of `agentic`. That is why the standard version is recorded per skill in the lockfile, and why `list` flags a skill compiled against an older standard:
-
-```
-develop  compiled against standard 1.0.0, current is 1.1.0
-  fix: agentic update develop
-```
+**The injected blocks come from the version of the tool you run**, not from the skill source. Two people on the same skill commit get different installed text if they run different versions of `agentic`, which is why the standard version is recorded per skill in the lockfile, and why `list` flags a skill compiled against an older one with a fix: `agentic update <name>`.
 
 ---
 
-## 💰 Token cost
+## 📄 Generating project context
 
-**The compiled size is the real number.** `validate` measures what gets installed, not what you edit, because the standard's blocks are injected and the installed file is roughly twice the source:
-
-```bash
-agentic validate skills/
-```
-
-```text
-✓ 9 skills and 8 bundled files checked against standard 1.0.0, all pass
-  context cost once installed: 54.4 KB across all, 6.0 KB average, largest is debug at 6.5 KB
-  only the skills an agent actually loads cost anything, one at a time
-```
-
-About 1.5k tokens for the skill in use. The 54 KB total is never all loaded at once: an agent reads the one skill it is running.
-
-**Budgets warn before they fail.** A source over 80% of the 12 KB budget gets a warning while it is still passing, so growth is visible early. When a skill breaches, shorten the skill. Raising the ceiling to fit the file is how a budget stops meaning anything.
-
-For a real session rather than an estimate, `agentic tokens` reads the transcript and separates main thread from subagent cost, splitting raw tokens into fresh input, cache write, and cache read:
+Skills know how to work. `AGENTS.md` is how they learn about *your* project.
 
 ```bash
-agentic tokens
+agentic profile                     # what was detected, and the file that proved it
+agentic context                     # plan an AGENTS.md: draft plus a brief of what is missing
+agentic context --answers <file>    # verify cited answers, write AGENTS.generated.md
 ```
+
+Sections are chosen from evidence, so a library gets 14 blocks and a pipeline application gets 28; a section that does not apply is absent rather than filled with `Unknown`.
+
+Generation runs in two phases. The first writes a draft and a brief listing what the repository could not answer for itself. An agent answers those, each with a citation, and the second phase does not take the answer's word for it: the CLI re-reads every citation itself, and a value survives only when the file it names still contains it.
 
 ```text
-  WHERE      TURNS     INPUT CACHE WRITE CACHE READ   OUTPUT  BILLED EQ
-  main         147       290      469.5k   23874.3k   170.0k    3824.4k
-  subagents      0         0           0          0        0          0
-
-  24514.0k raw tokens, 3824.4k billed equivalent units.
-  97% of raw tokens were cache reads, billed at a tenth of fresh input.
-  22% of the real cost was output, which is what to cut first.
+✗ 2 fields downgraded to Unknown - the claim could not be backed by its citation:
+    ✗ OUT_OF_SCOPE: not found in README.md:3
+    ✗ ARCHITECTURE_SUMMARY: no citation was given
 ```
 
----
+A value that cannot be verified becomes `Unknown`, and the run reports every field it downgraded and exits non zero so CI can gate on it. Facts the CLI read itself are never offered to a model and never overwritten by one, so a model cannot invent a version number or a command. This is the difference between asking a model not to hallucinate and checking whether it did.
 
-## 🌍 Portability
-
-Portability is enforced, not hoped for: `validate` rejects a skill that would behave differently across tools.
-
-| Rule | Stops |
-|---|---|
-| `no-model-alias` | Hardcoding a vendor model name. Describe the tier in role words instead |
-| `capability-first` | Naming one vendor's subagent tool in prose. Describe the capability |
-| `portable-shell` | Shell glue that breaks on PowerShell, so skills run on Windows too |
-| `no-long-dash` | Em and en dashes, which render inconsistently across clients |
-
-`git` is the only external command, and it behaves the same on macOS, Linux, and Windows. Where a skill needs a capability the host lacks (spawning a reviewer, driving a browser), it says so in its report rather than pretending the step ran.
-
-`.claude/agents/` ships two read only helpers used by the workflow: `scout` for compact repo maps on a cheap model, and `reviewer` for the independent review the standard requires. Other clients ignore that directory.
+Your `AGENTS.md` is never overwritten: the run writes `AGENTS.generated.md` and shows what would change, including anything you would lose. Loading one compiled skill costs about 1.6k tokens on average, out of 56.7 KB installed across all nine; `agentic tokens` measures the real cost of a session from its transcript instead of estimating it.
 
 ---
 
@@ -592,7 +368,9 @@ A green `validate` means installable. Conventions, budgets, and the full rule li
 
 ---
 
-## 🩹 Troubleshooting
+## ❓ FAQ
+
+**Troubleshooting**
 
 | What you see | What it means | Do this |
 |---|---|---|
@@ -605,36 +383,22 @@ A green `validate` means installable. Conventions, budgets, and the full rule li
 
 `agentic list` checks everything at once, exits non zero, and names a fix for anything wrong.
 
----
+**What this will not do**
 
-## 🚧 What this will not do
-
-The limits matter as much as the features, and stating them is cheaper than letting someone discover them.
-
-- **It will not declare your work done.** `done` is yours. The depth only suggests where to stop, and a skipped step is recorded as skipped rather than held against you.
-- **It will not block you on an unratified decision.** An `Assumed` spec is a standing reminder, never a gate.
-- **The spec gate is strong, not absolute.** No prompt catches everything, which is why `/check verify` and `/test` sit behind it.
-- **A review reports, it does not edit.** What changes is your call.
-- **No skill rewrites another skill's files.** `/sync` adds lines and rewrites single lines it owns, never prose a person wrote. Where the repo contradicts curated text, it reports rather than resolves.
-- **The standard checks coherence, not quality.** It can prove a declaration is consistent and its rules were injected. It cannot prove the skill gives good advice. That still needs a person reading the output.
-
----
-
-## ❓ FAQ
+- **Declare your work done.** `done` is yours. A skipped step is recorded as skipped rather than held against you.
+- **Block you on an unratified decision.** An `Assumed` spec is a standing reminder, never a gate.
+- **Catch everything with a prompt.** The spec gate is layered, with `/check verify` and `/test` behind it, not absolute on its own.
+- **Edit on review.** A review reports; what changes is your call.
+- **Let one skill rewrite another's files.** `/sync` adds lines and rewrites single lines it owns, never prose a person wrote.
+- **Prove quality.** The standard proves a declaration is consistent and its rules were injected. It cannot prove the skill gives good advice; that still needs a person reading the output.
 
 **Do I have to run all nine?** No. A tiny change is `/develop` then `/check verify`. A bug is `/debug`.
 
-**What if there is no spec yet?** `/develop` stops and routes you to `/architect`. You can override, and the assumption is recorded rather than lost.
-
-**Is it fine to never ratify an `Assumed` spec?** Allowed, and not free. It stays visible in `docs/specs/` and resurfaces on a bare `/scope` or `/sync`. For a spike, leave it.
+**What if there is no spec yet?** `/develop` stops and routes you to `/architect`. You can override, and the assumption is recorded as an `Assumed` spec rather than lost.
 
 **Why clear the session between stages?** A long chat costs more and drifts. The work is in files, so a fresh session reads current state from disk and loses nothing.
 
-**Where do files go if `docs/` is a published site?** They move to `.workflow/`, so internal planning does not ship to users.
-
 **What if my agent cannot spawn a reviewer?** `/check review` runs inline and says plainly that the review was not independent. That sentence is the finding.
-
-**Does updating the tool change my installed skills?** Yes, and that is the intended path. Injected blocks come from the version of `agentic` you run, so `agentic update` recompiles against the current standard.
 
 ---
 
@@ -647,7 +411,7 @@ npm run check     # both, and what CI runs
 npm run tokens    # where the tokens went in your last session
 ```
 
-The standard's own injected prose is held to the rules it enforces on authors, by a test over every family at every level. Getting that wrong is worse than an author getting it wrong: an author breaks a rule in one skill, the standard breaks it in every skill it ships.
+The standard's own injected prose is held to the rules it enforces on authors, by a test over every family at every level: an author breaking a rule affects one skill, the standard breaking it affects every skill it ships.
 
 Architecture and why the pipeline is shaped this way: [`docs/architecture.md`](docs/architecture.md).
 

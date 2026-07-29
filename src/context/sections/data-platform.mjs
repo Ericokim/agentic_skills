@@ -6,7 +6,7 @@ export const title = 'Data platform source of truth';
 export const when = (signals) => signals.database.present;
 export const requires = 'a database';
 
-export function text() {
+export function text(signals) {
   return `# 7. {{DATA_PLATFORM}} source of truth
 
 {{DATA_PLATFORM}} is the source of truth for {{PRIMARY_RECORD_NAME}}.

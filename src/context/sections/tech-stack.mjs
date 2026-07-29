@@ -5,7 +5,7 @@ export const number = 6;
 export const title = 'Tech stack';
 export const when = () => true;
 
-export function text() {
+export function text(signals) {
   return `# 6. Tech stack
 
 {{STACK_TABLE}}

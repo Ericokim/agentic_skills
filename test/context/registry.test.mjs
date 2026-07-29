@@ -26,7 +26,7 @@ test('section ids are unique', () => {
   assert.deepEqual(ids, [...new Set(ids)]);
 });
 
-test('numbered sections are ordered by number', () => {
+test('numbered sections appear in ascending order', () => {
   const numbers = SECTIONS.map((s) => s.number).filter((n) => n !== null);
   assert.deepEqual(numbers, [...numbers].sort((a, b) => a - b));
 });
@@ -50,7 +50,9 @@ test('a conditional section is included when its signal is present', () => {
   assert.ok(included.some((s) => s.id === 'data-platform'));
 });
 
-test('selection is pure', () => {
+test('selectSections does not mutate the profile it is given', () => {
   const p = { signals: signals({ database: true }) };
-  assert.deepEqual(selectSections(p).included.map((s) => s.id), selectSections(p).included.map((s) => s.id));
+  const before = JSON.stringify(p);
+  selectSections(p);
+  assert.equal(JSON.stringify(p), before);
 });

@@ -8,13 +8,12 @@ import * as dataPlatform from './sections/data-platform.mjs';
 import * as product from './sections/product.mjs';
 import * as techStack from './sections/tech-stack.mjs';
 
-/** Ordered by section number, unnumbered blocks last in declared order. */
-export const SECTIONS = [product, techStack, dataPlatform].sort((a, b) => {
-  if (a.number === null && b.number === null) return 0;
-  if (a.number === null) return 1;
-  if (b.number === null) return -1;
-  return a.number - b.number;
-});
+/**
+ * Array order is the document order. Unnumbered blocks are placed by position in
+ * this array rather than by a sort, because some belong before section 1 and others
+ * after section 23.
+ */
+export const SECTIONS = [product, techStack, dataPlatform];
 
 /**
  * Which sections this repository gets, and why the rest were left out.
@@ -28,7 +27,7 @@ export function selectSections({ signals }) {
   const skipped = [];
   for (const section of SECTIONS) {
     if (section.when(signals)) included.push(section);
-    else skipped.push({ id: section.id, title: section.title, reason: `no ${section.requires ?? 'matching evidence'}` });
+    else skipped.push({ id: section.id, title: section.title, reason: `requires ${section.requires ?? 'evidence this section applies'}` });
   }
   return { included, skipped };
 }

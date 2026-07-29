@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { validateSkill, BUDGETS } from '../src/validate.mjs';
+import { BUDGETS, validateAsset, validateSkill } from '../src/validate.mjs';
 
 const FULL = `standard:
   evidence: strict
@@ -155,4 +155,44 @@ test('every violation carries a rule, severity, and message', () => {
     assert.ok(['error', 'warning'].includes(violation.severity));
     assert.ok(violation.message.length > 0);
   }
+});
+
+// Bundled assets: the files that ship beside a SKILL.md (modes, templates).
+// They carry no frontmatter and are not skills, but they are instruction text
+// that loads into a context, so the prose and size rules still apply to them.
+
+test('a clean bundled asset passes', () => {
+  assert.deepEqual(validateAsset('# Template\n\nPlain prose, no frontmatter.\n'), []);
+});
+
+test('a bundled asset does not need frontmatter', () => {
+  const violations = validateAsset('# Just a heading\n');
+  assert.ok(!ids(violations).includes('frontmatter-required'));
+  assert.ok(!ids(violations).includes('standard-declaration'));
+});
+
+test('a bundled asset is flagged for an em dash', () => {
+  assert.ok(ids(validateAsset('# T\n\nA thing — and another.\n')).includes('no-long-dash'));
+});
+
+test('a bundled asset is flagged for a hardcoded model alias', () => {
+  const violations = validateAsset('# T\n\nSpawn it with model: "opus" set.\n');
+  assert.ok(ids(violations).includes('no-model-alias'));
+});
+
+test('a bundled asset is flagged for naming the subagent tool in prose', () => {
+  assert.ok(ids(validateAsset('# T\n\nUse the Task tool.\n')).includes('capability-first'));
+});
+
+test('a bundled asset is flagged for unportable shell glue', () => {
+  assert.ok(ids(validateAsset('# T\n\nRun `x >/dev/null`.\n')).includes('portable-shell'));
+});
+
+test('a bundled asset over its own budget is flagged', () => {
+  const violations = validateAsset(`# T\n\n${'x'.repeat(BUDGETS.assetBytes + 1)}`);
+  assert.ok(ids(violations).includes('size-budget'));
+});
+
+test('the asset budget is smaller than the skill budget', () => {
+  assert.ok(BUDGETS.assetBytes < BUDGETS.skillBytes);
 });

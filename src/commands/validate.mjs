@@ -5,27 +5,37 @@ import { compile } from '../compile.mjs';
 import { parseSkill } from '../skill.mjs';
 import { STANDARD_VERSION } from '../standard/index.mjs';
 import { bold, dim, line, reportViolations, symbol, yellow } from '../ui.mjs';
-import { BUDGETS, validateSkill } from '../validate.mjs';
+import { BUDGETS, validateAsset, validateSkill } from '../validate.mjs';
 
 /** Warn while a skill is still passing, so growth is visible before it fails. */
 const WARN_AT = 0.8;
 
-/** Every SKILL.md at or under a path. */
-async function findSkills(target) {
+/**
+ * Every markdown file at or under a path, split by kind.
+ *
+ * Bundled files ship with the skill and reach the agent the same way, so they
+ * are checked too. Only the rules that make sense for them are applied: they
+ * have no frontmatter and declare no standard.
+ */
+async function findMarkdown(target) {
   const info = await stat(target);
-  if (info.isFile()) return [target];
+  if (info.isFile()) {
+    return basename(target) === 'SKILL.md' ? { skills: [target], assets: [] } : { skills: [], assets: [target] };
+  }
 
-  const found = [];
+  const skills = [];
+  const assets = [];
   const walk = async (dir) => {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
       const path = join(dir, entry.name);
       if (entry.isDirectory()) await walk(path);
-      else if (entry.name === 'SKILL.md') found.push(path);
+      else if (entry.name === 'SKILL.md') skills.push(path);
+      else if (entry.name.endsWith('.md')) assets.push(path);
     }
   };
   await walk(target);
-  return found.sort();
+  return { skills: skills.sort(), assets: assets.sort() };
 }
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
@@ -53,16 +63,17 @@ function contextCost(raw) {
  * green validate means installable.
  */
 export async function validate({ root, target }) {
-  let paths;
+  let found;
   try {
-    paths = await findSkills(target);
+    found = await findMarkdown(target);
   } catch (error) {
     line(`${symbol.fail} cannot read ${target}: ${error.message}`);
     return 1;
   }
 
-  if (paths.length === 0) {
-    line(`${symbol.warn} no SKILL.md found under ${bold(relative(root, target) || target)}`);
+  const paths = found.skills;
+  if (paths.length === 0 && found.assets.length === 0) {
+    line(`${symbol.warn} no markdown found under ${bold(relative(root, target) || target)}`);
     return 1;
   }
 
@@ -95,8 +106,19 @@ export async function validate({ root, target }) {
     }
   }
 
+  for (const path of found.assets) {
+    const raw = await readFile(path, 'utf8');
+    const violations = validateAsset(raw);
+    if (violations.some((v) => v.severity === 'error')) failed += 1;
+    reportViolations(dim(relative(root, path) || path), violations);
+  }
+
   line();
-  const summary = `${paths.length} ${paths.length === 1 ? 'skill' : 'skills'} checked against standard ${STANDARD_VERSION}`;
+  const assetNote =
+    found.assets.length > 0
+      ? ` and ${found.assets.length} bundled ${found.assets.length === 1 ? 'file' : 'files'}`
+      : '';
+  const summary = `${paths.length} ${paths.length === 1 ? 'skill' : 'skills'}${assetNote} checked against standard ${STANDARD_VERSION}`;
 
   if (failed > 0) {
     line(`${symbol.fail} ${summary}, ${bold(String(failed))} failing`);

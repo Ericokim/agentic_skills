@@ -22,6 +22,7 @@ import { checkInvariants, parseDeclaration } from './standard/index.mjs';
 export const BUDGETS = {
   description: 400, // every installed description loads into every session
   skillBytes: 12_000, // the body loads in full on every run
+  assetBytes: 8_000, // a bundled file loads whenever the skill reads it
 };
 
 const REQUIRED_FRONTMATTER = ['name', 'description', 'allowed-tools'];
@@ -79,13 +80,19 @@ function checkFrontmatter(skill, dirname) {
 }
 
 /**
- * Cross tool portability. A skill is installed into agents we do not control,
- * on operating systems we cannot see, so anything that silently assumes one
- * vendor or one shell is a defect at author time.
+ * Cross tool portability, for any instruction text we ship.
+ *
+ * Runs against a SKILL.md body and against every bundled file beside it. A mode
+ * file or a template is instruction text too: it loads into a context and it
+ * reaches the same agent tools on operating systems we cannot see. Checking
+ * only SKILL.md would leave most of the shipped words unchecked.
+ *
+ * @param {string} body prose to check
+ * @param {string} raw the whole file, for rules that cover frontmatter as well
+ * @param {number} budget size ceiling in bytes
  */
-function checkPortability(skill, raw) {
+function checkProse(body, raw, budget) {
   const out = [];
-  const body = skill.body;
 
   if (/\bmodel:\s*["']?(haiku|sonnet|opus|fable)\b/i.test(body)) {
     out.push(
@@ -125,16 +132,29 @@ function checkPortability(skill, raw) {
   }
 
   const bytes = Buffer.byteLength(raw, 'utf8');
-  if (bytes > BUDGETS.skillBytes) {
+  if (bytes > budget) {
     out.push(
       violation(
         'size-budget',
-        `is ${bytes} bytes, over the ${BUDGETS.skillBytes} budget (the body loads on every invocation, so split rare long content into a bundled file the skill reads only when needed)`,
+        `is ${bytes} bytes, over the ${budget} budget (this text loads into a context when used, so split rare long content into a file that is read only when needed)`,
       ),
     );
   }
 
   return out;
+}
+
+/**
+ * Validate a bundled file that ships beside a SKILL.md.
+ *
+ * A mode file or a template has no frontmatter and declares no standard, so the
+ * skill rules do not apply. The prose and size rules do, because this text
+ * still reaches an agent.
+ *
+ * @param {string} raw contents of the bundled .md file
+ */
+export function validateAsset(raw) {
+  return checkProse(raw, raw, BUDGETS.assetBytes);
 }
 
 /**
@@ -155,7 +175,7 @@ export function validateSkill(raw, { dirname = null } = {}) {
 
   const out = [
     ...checkFrontmatter(skill, dirname),
-    ...checkPortability(skill, raw),
+    ...checkProse(skill.body, raw, BUDGETS.skillBytes),
   ];
 
   const { declaration, violations: declarationViolations } = parseDeclaration(skill);

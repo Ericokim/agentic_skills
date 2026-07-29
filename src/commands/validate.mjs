@@ -5,7 +5,7 @@ import { compile } from '../compile.mjs';
 import { parseSkill } from '../skill.mjs';
 import { STANDARD_VERSION } from '../standard/index.mjs';
 import { bold, dim, line, reportViolations, symbol, yellow } from '../ui.mjs';
-import { BUDGETS, validateAsset, validateSkill } from '../validate.mjs';
+import { BUDGETS, isCompiled, validateAsset, validateCompiled, validateSkill } from '../validate.mjs';
 
 /** Warn while a skill is still passing, so growth is visible before it fails. */
 const WARN_AT = 0.8;
@@ -79,12 +79,26 @@ export async function validate({ root, target }) {
 
   let failed = 0;
   let total = 0;
+  let installed = 0;
   let largest = { name: null, bytes: 0 };
 
   line();
   for (const path of paths) {
     const raw = await readFile(path, 'utf8');
     const name = basename(dirname(path));
+
+    // An installed skill is compiled output, not a source. Judging it by the
+    // source rules would report every one as missing a standard block that the
+    // compiler removed on purpose.
+    if (isCompiled(raw)) {
+      installed += 1;
+      const violations = validateCompiled(raw, { dirname: name });
+      if (violations.some((v) => v.severity === 'error')) failed += 1;
+      reportViolations(`${relative(root, path) || path} ${dim('(installed)')}`, violations);
+      total += Buffer.byteLength(raw, 'utf8');
+      continue;
+    }
+
     const violations = validateSkill(raw, { dirname: name });
 
     const source = Buffer.byteLength(raw, 'utf8');
@@ -127,6 +141,16 @@ export async function validate({ root, target }) {
   }
 
   line(`${symbol.ok} ${summary}, all pass`);
+
+  if (installed > 0) {
+    line(
+      dim(
+        `  ${installed} of these are installed skills, checked against the rules that still apply once compiled`,
+      ),
+    );
+    line(dim('  to check declarations and invariants, validate the source they came from'));
+  }
+
   if (largest.name) {
     const each = total / paths.length;
     line(

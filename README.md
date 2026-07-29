@@ -9,7 +9,7 @@ never installs at all.
 
 ```bash
 npx agentic init
-npx agentic add github:erickim/agentic_skills/skills/develop
+npx agentic add github:Ericokim/agentic_skills/skills/develop
 ```
 
 Works with Claude Code, Codex, Cursor, and any client that reads the open
@@ -277,7 +277,7 @@ and publishing is pushing.
 {
   "standard": "1.0.0",
   "targets": ["claude-code", "codex"],
-  "skills": { "develop": "github:erickim/agentic_skills#v1.0.0" }
+  "skills": { "develop": "github:Ericokim/agentic_skills#v1.0.0" }
 }
 
 // skills.lock   the machine truth

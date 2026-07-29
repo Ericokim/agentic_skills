@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { BUDGETS, validateAsset, validateSkill } from '../src/validate.mjs';
+import { BUDGETS, isCompiled, validateAsset, validateCompiled, validateSkill } from '../src/validate.mjs';
 
 const FULL = `standard:
   evidence: strict
@@ -195,4 +195,75 @@ test('a bundled asset over its own budget is flagged', () => {
 
 test('the asset budget is smaller than the skill budget', () => {
   assert.ok(BUDGETS.assetBytes < BUDGETS.skillBytes);
+});
+
+// Installed skills are compiled output, not sources. The standard block is
+// stripped on install by design, so running the source rules over an installed
+// directory reports a pile of failures that are not failures. A user will do
+// this, so it has to answer usefully.
+
+const compiledSkill = (body = '## What this skill does\n\nBuilds.\n') => `---
+name: build
+description: Builds a feature from its spec.
+allowed-tools: Read, Write, Bash, Agent
+---
+
+<!-- agentic:standard 1.0.0 -->
+
+## Evidence classification
+
+Tag every claim.
+
+<!-- /agentic:standard -->
+
+${body}`;
+
+test('recognises compiled output by its provenance marker', () => {
+  assert.equal(isCompiled(compiledSkill()), true);
+  assert.equal(isCompiled(good()), false);
+});
+
+test('a compiled skill is not reported as missing its standard block', () => {
+  const violations = validateCompiled(compiledSkill(), { dirname: 'build' });
+  assert.ok(!ids(violations).includes('standard-declaration'));
+  assert.ok(!ids(violations).includes('standard-invariant'));
+});
+
+test('a clean compiled skill passes', () => {
+  assert.deepEqual(validateCompiled(compiledSkill(), { dirname: 'build' }), []);
+});
+
+test('a compiled skill is still held to the prose rules', () => {
+  const violations = validateCompiled(compiledSkill('## Do\n\nAn em dash — here.\n'), {
+    dirname: 'build',
+  });
+  assert.ok(ids(violations).includes('no-long-dash'));
+});
+
+test('a compiled skill is still held to frontmatter rules', () => {
+  const violations = validateCompiled(compiledSkill().replace('name: build\n', ''), {
+    dirname: 'build',
+  });
+  assert.ok(ids(violations).includes('frontmatter-required'));
+});
+
+test('every skill this repo installs passes the compiled rules', async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const { compile } = await import('../src/compile.mjs');
+  const { parseSkill } = await import('../src/skill.mjs');
+
+  const repo = new URL('..', import.meta.url).pathname;
+  const entries = await readdir(join(repo, 'skills'), { withFileTypes: true });
+
+  for (const entry of entries.filter((e) => e.isDirectory())) {
+    const raw = await readFile(join(repo, 'skills', entry.name, 'SKILL.md'), 'utf8');
+    const out = compile(parseSkill(raw));
+    assert.equal(isCompiled(out), true, `${entry.name} lost its marker`);
+    assert.deepEqual(
+      validateCompiled(out, { dirname: entry.name }),
+      [],
+      `${entry.name} compiles to something that fails its own rules`,
+    );
+  }
 });

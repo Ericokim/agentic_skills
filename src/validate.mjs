@@ -145,6 +145,40 @@ function checkProse(body, raw, budget) {
 }
 
 /**
+ * Is this an installed skill rather than a source?
+ *
+ * The compiler stamps a provenance marker, so compiled output identifies
+ * itself. Without this, running the source rules over an installed directory
+ * reports every skill as missing its standard block, which is not a failure at
+ * all: the block is stripped on install by design.
+ */
+export function isCompiled(raw) {
+  return /<!--\s*agentic:standard\s/.test(raw);
+}
+
+/**
+ * Validate an installed skill.
+ *
+ * Applies what still holds once a skill is compiled: it must parse, name
+ * itself, fit its budget, and keep to the prose rules. It must not be asked for
+ * a standard declaration, because the compiler removed it and put the resulting
+ * rules in the body instead.
+ */
+export function validateCompiled(raw, { dirname = null } = {}) {
+  let skill;
+  try {
+    skill = parseSkill(raw);
+  } catch (error) {
+    if (error instanceof SkillParseError) return [violation('parse', error.message)];
+    throw error;
+  }
+  return [
+    ...checkFrontmatter(skill, dirname),
+    ...checkProse(skill.body, raw, BUDGETS.skillBytes + BUDGETS.assetBytes),
+  ];
+}
+
+/**
  * Validate a bundled file that ships beside a SKILL.md.
  *
  * A mode file or a template has no frontmatter and declares no standard, so the

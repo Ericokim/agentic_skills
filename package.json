@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/erickim/agentic_skills.git"
+    "url": "git+https://github.com/Ericokim/agentic_skills.git"
   },
   "engines": {
     "node": ">=20"

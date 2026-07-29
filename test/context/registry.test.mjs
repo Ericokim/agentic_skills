@@ -1,0 +1,56 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+import { SECTIONS, selectSections } from '../../src/context/registry.mjs';
+
+const signals = (on = {}) => {
+  const ids = ['packageManager','languages','frameworks','database','httpRoutes',
+    'backgroundWork','ui','browserTooling','secrets','tests','commands',
+    'workflowSkills','librarySkills'];
+  return Object.fromEntries(ids.map((id) => [id, { present: Boolean(on[id]), evidence: [] }]));
+};
+
+test('every section declares the required exports', () => {
+  for (const section of SECTIONS) {
+    assert.equal(typeof section.id, 'string', 'id');
+    assert.ok(section.number === null || typeof section.number === 'number', section.id);
+    assert.equal(typeof section.title, 'string', section.id);
+    assert.equal(typeof section.when, 'function', section.id);
+    assert.equal(typeof section.text, 'function', section.id);
+    assert.ok(section.text(signals()).length > 0, `${section.id} text is empty`);
+  }
+});
+
+test('section ids are unique', () => {
+  const ids = SECTIONS.map((s) => s.id);
+  assert.deepEqual(ids, [...new Set(ids)]);
+});
+
+test('numbered sections are ordered by number', () => {
+  const numbers = SECTIONS.map((s) => s.number).filter((n) => n !== null);
+  assert.deepEqual(numbers, [...numbers].sort((a, b) => a - b));
+});
+
+test('always sections are selected for an empty profile', () => {
+  const { included } = selectSections({ signals: signals() });
+  assert.ok(included.some((s) => s.id === 'product'));
+  assert.ok(included.some((s) => s.id === 'tech-stack'));
+});
+
+test('a conditional section is skipped with a reason', () => {
+  const { included, skipped } = selectSections({ signals: signals() });
+  assert.ok(!included.some((s) => s.id === 'data-platform'));
+  const entry = skipped.find((s) => s.id === 'data-platform');
+  assert.ok(entry, 'expected data-platform in skipped');
+  assert.match(entry.reason, /database/);
+});
+
+test('a conditional section is included when its signal is present', () => {
+  const { included } = selectSections({ signals: signals({ database: true }) });
+  assert.ok(included.some((s) => s.id === 'data-platform'));
+});
+
+test('selection is pure', () => {
+  const p = { signals: signals({ database: true }) };
+  assert.deepEqual(selectSections(p).included.map((s) => s.id), selectSections(p).included.map((s) => s.id));
+});

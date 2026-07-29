@@ -80,8 +80,11 @@ standard:                                ## Evidence classification    <- inject
 
 A skill can promise a definition of done with no way to cite evidence, or independent review with no way to spawn a reviewer. Both look fine line by line. The installer checks the combination:
 
-```console
-$ agentic add ./skills/liar
+```bash
+agentic add ./skills/liar
+```
+
+```text
 ✗ liar does not meet the standard, so it was not installed
     error standard-invariant  done requires evidence at tagged or stricter, because
                               the checklist asks for [O] evidence that an untagged
@@ -283,8 +286,11 @@ No registry service. A source is a git repo or a path, a version is a git ref, a
 
 **Bundled files travel with the skill.** A skill can ship mode files and templates beside its `SKILL.md` and reference them by relative path, and those files install with it. Cursor is the exception, being one flat file with nowhere to put a sibling, and it says so rather than leaving an agent to find a file missing mid task:
 
-```console
-$ agentic add ./skills/check -t cursor
+```bash
+agentic add ./skills/check -t cursor
+```
+
+```text
 ✓ check · 1 file
     ! cursor cannot carry bundled files, so 2 were left out and this skill will be incomplete there
 ```
@@ -306,8 +312,11 @@ $ agentic add ./skills/check -t cursor
 
 The lockfile hashes the **emitted** file, not the source. That is what lets `agentic list` tell that someone hand edited an installed skill, so an update warns instead of silently overwriting work a person did on purpose:
 
-```console
-$ agentic add ./skills/develop
+```bash
+agentic add ./skills/develop
+```
+
+```text
 ! develop has local edits, so it was left alone:
     .claude/skills/develop/SKILL.md
     reinstall over them with --force
@@ -327,8 +336,11 @@ $ agentic add ./skills/develop
 
 `validate` over an installed directory does the sensible thing. Installed skills are compiled output, so they are held to the rules that still apply once compiled (parse, name, budget, prose) and are not asked for a standard declaration the compiler deliberately stripped:
 
-```console
-$ agentic validate .claude/skills
+```bash
+agentic validate .claude/skills
+```
+
+```text
 ✓ 9 skills and 17 bundled files checked against standard 1.0.0, all pass
   9 of these are installed skills, checked against the rules that still apply once compiled
   to check declarations and invariants, validate the source they came from
@@ -366,8 +378,11 @@ develop  compiled against standard 1.0.0, current is 1.1.0
 
 **The compiled size is the real number.** `validate` measures what gets installed, not what you edit, because the standard's blocks are injected and the installed file is roughly twice the source:
 
-```console
-$ agentic validate skills/
+```bash
+agentic validate skills/
+```
+
+```text
 ✓ 9 skills and 8 bundled files checked against standard 1.0.0, all pass
   context cost once installed: 54.4 KB across all, 6.0 KB average, largest is debug at 6.5 KB
   only the skills an agent actually loads cost anything, one at a time
@@ -379,8 +394,11 @@ About 1.5k tokens for the skill in use. The 54 KB total is never all loaded at o
 
 For a real session rather than an estimate, `agentic tokens` reads the transcript and separates main thread from subagent cost, splitting raw tokens into fresh input, cache write, and cache read:
 
-```console
-$ agentic tokens
+```bash
+agentic tokens
+```
+
+```text
   WHERE      TURNS     INPUT CACHE WRITE CACHE READ   OUTPUT  BILLED EQ
   main         147       290      469.5k   23874.3k   170.0k    3824.4k
   subagents      0         0           0          0        0          0

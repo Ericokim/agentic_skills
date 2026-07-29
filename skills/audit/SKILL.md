@@ -48,22 +48,29 @@ pointer. Writes nothing else. `/sync` keeps these current afterwards.
 
 ## Execution
 
-1. Establish the stack from evidence: package manifests, lockfiles, config
-   files, CI workflows. Read them. A framework you infer from a directory name
-   is not a framework you found.
-2. Establish the commands the same way: the scripts a maintainer actually runs
-   for install, build, test, lint, and dev. Take them from the manifest or the
-   CI config, not from what is conventional for that stack.
-3. Run the test and build commands if they are cheap and safe, and record
-   whether they currently pass. A command listed in AGENTS.md that does not run
-   is worse than no command, because every later skill will try it.
-4. Read enough source to state the conventions honestly: layout, naming, error
-   handling, how state is managed. Cite the files these came from.
-5. Write AGENTS.md. Each claim carries its source. Anything you could not verify
-   is written as unknown, not omitted and not guessed.
-6. In a monorepo, give each workspace its own nested AGENTS.md with that
-   workspace's own commands. A single root file that describes five packages
-   describes none of them.
+1. Run `agentic context` if the command exists. It profiles the repository,
+   selects the sections this project needs, pre-fills every fact the repo
+   already states, and writes `AGENTS.draft.md` plus `AGENTS.brief.md`.
+   If the command is missing, do the same work by hand and say so in the report.
+2. Read `AGENTS.brief.md`. It lists every placeholder that still needs an
+   answer and names the section each belongs to.
+3. Answer each one from evidence. Every answer carries a citation:
+
+   ```
+   PRODUCT_SUMMARY: a content management system for course material
+     evidence: README.md:1-14
+   ```
+
+   A claim you cannot cite is written as `Unknown`, never guessed.
+4. Run the project's build and test commands, and record whether they currently
+   pass. A command written down that does not run is worse than no command,
+   because every later skill will try it.
+5. Write the answers back into the draft, then write `AGENTS.generated.md`.
+   Never write `AGENTS.md` directly.
+6. Show what changed against any existing `AGENTS.md`, including anything the
+   generated version would lose.
+7. In a monorepo, repeat per workspace. A single root file describing five
+   packages describes none of them.
 
 ## What goes in AGENTS.md
 

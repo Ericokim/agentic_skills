@@ -23,6 +23,16 @@ test('a default manifest declares targets, a standard version, and no skills', (
   assert.deepEqual(manifest.skills, {});
 });
 
+test('a default manifest has prompt first mode off', () => {
+  assert.equal(defaultManifest({ targets: ['claude-code'] }).promptFirst, false);
+});
+
+test('prompt first survives a write and read', async () => {
+  const root = await scratch();
+  await writeManifest(root, { ...defaultManifest({ targets: ['claude-code'] }), promptFirst: true });
+  assert.equal((await readManifest(root)).promptFirst, true);
+});
+
 test('readManifest returns null when there is no manifest', async () => {
   assert.equal(await readManifest(await scratch()), null);
 });

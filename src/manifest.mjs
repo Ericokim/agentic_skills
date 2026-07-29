@@ -13,7 +13,7 @@ import { DEFAULT_TARGET } from './targets/index.mjs';
 export const MANIFEST_FILE = 'skills.json';
 
 export function defaultManifest({ targets = [DEFAULT_TARGET] } = {}) {
-  return { standard: STANDARD_VERSION, targets, skills: {} };
+  return { standard: STANDARD_VERSION, targets, promptFirst: false, skills: {} };
 }
 
 export async function readManifest(root) {

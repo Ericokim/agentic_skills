@@ -56,6 +56,15 @@ export function pickOne(items, { input = process.stdin, output = process.stdout,
     // Every step here is independently guarded, the same discipline
     // picker.mjs's restore() uses: this runs from an error path as often as a
     // clean one, so one step failing must never stop the rest from running.
+    //
+    // No unref() here - see picker.mjs's restore() for the full reasoning,
+    // which applies here unchanged. Short version: pause() alone already
+    // lets the process exit once nothing else is keeping the event loop
+    // alive, so an explicit unref() was redundant; worse, without a matching
+    // ref() on the next prompt's resume(), it silently killed the process
+    // mid-wizard the moment a later step rendered and started waiting for a
+    // keypress. That bug was invisible to tests driven by fake streams,
+    // which have no ref/unref at all.
     function restore() {
       if (restored) return;
       restored = true;
@@ -82,11 +91,24 @@ export function pickOne(items, { input = process.stdin, output = process.stdout,
       } catch {
         // ignore
       }
+    }
+
+    // Erases the frame this prompt drew, moving the cursor back to the line
+    // the frame started on. See picker.mjs's erase() for why: without it the
+    // caller's collapsed "done" line for this step lands below the
+    // still-on-screen live frame instead of in its place.
+    function erase() {
+      if (linesWritten === 0) return;
       try {
-        input.unref?.();
+        output.write(cursorUp(linesWritten));
+        for (let index = 0; index < linesWritten; index += 1) {
+          output.write(`${CLEAR_LINE}\n`);
+        }
+        output.write(cursorUp(linesWritten));
       } catch {
-        // ignore
+        // stdout may already be gone; nothing left to erase for
       }
+      linesWritten = 0;
     }
 
     function render() {
@@ -101,6 +123,7 @@ export function pickOne(items, { input = process.stdin, output = process.stdout,
     }
 
     function finish(result) {
+      erase();
       restore();
       resolvePromise(result);
     }
@@ -144,6 +167,10 @@ export function pickOne(items, { input = process.stdin, output = process.stdout,
       readline.emitKeypressEvents(input);
       input.setRawMode(true);
       input.resume();
+      // Paired with resume(), not with the unref() restore() no longer has
+      // (see the comment there): this is the defensive half of the pair, in
+      // case anything upstream of this prompt ever left stdin unrefed.
+      input.ref?.();
       output.write(HIDE_CURSOR);
       render();
       input.on('keypress', onKeypress);

@@ -136,8 +136,22 @@ export function pickSkills(
     // Every step here is independently guarded. Restoration runs from within
     // an error path as often as a clean one, so one step failing (stdout
     // closed early, EPIPE, whatever) must never stop the rest from running -
-    // the raw-mode-off and unref calls matter even when the cursor write
-    // itself fails.
+    // the raw-mode-off call matters even when the cursor write itself fails.
+    //
+    // No unref() here. It used to end this function, meant to let the
+    // process exit after the LAST prompt of a run - but pause() already does
+    // that: a paused stdin holds no reference of its own, so once nothing
+    // else keeps the event loop alive the process exits promptly on its own,
+    // with no unref needed (verified directly: a paused, not-unrefed stdin
+    // lets a bare Node script exit immediately). Calling unref() here bought
+    // nothing and cost a real bug - a second prompt's resume() has no
+    // matching ref(), so a run with more than one prompt (every wizard in
+    // this codebase) would unref stdin after step 1 and then, on step 2,
+    // resume a stream nothing was holding open. The process would exit the
+    // instant step 2 finished rendering, mid-wizard, silently, having
+    // installed nothing. Fake-stream tests never caught this: a PassThrough
+    // has no ref/unref at all, so `input.unref?.()` was a silent no-op there
+    // by construction.
     function restore() {
       if (restored) return;
       restored = true;
@@ -164,11 +178,25 @@ export function pickSkills(
       } catch {
         // ignore
       }
+    }
+
+    // Erases the frame this prompt drew, moving the cursor back to the line
+    // the frame started on. Without this, the caller's collapsed "done" line
+    // for this step gets printed below the still-on-screen live frame
+    // instead of in its place, and the step appears twice - the live picker
+    // with its description panel, and the collapsed summary underneath it.
+    function erase() {
+      if (linesWritten === 0) return;
       try {
-        input.unref?.();
+        output.write(cursorUp(linesWritten));
+        for (let index = 0; index < linesWritten; index += 1) {
+          output.write(`${CLEAR_LINE}\n`);
+        }
+        output.write(cursorUp(linesWritten));
       } catch {
-        // ignore
+        // stdout may already be gone; nothing left to erase for
       }
+      linesWritten = 0;
     }
 
     function render() {
@@ -184,6 +212,7 @@ export function pickSkills(
     }
 
     function finish(result) {
+      erase();
       restore();
       resolvePromise(result);
     }
@@ -230,6 +259,10 @@ export function pickSkills(
       readline.emitKeypressEvents(input);
       input.setRawMode(true);
       input.resume();
+      // Paired with resume(), not with the unref() restore() no longer has
+      // (see the comment there): this is the defensive half of the pair, in
+      // case anything upstream of this prompt ever left stdin unrefed.
+      input.ref?.();
       output.write(HIDE_CURSOR);
       render();
       input.on('keypress', onKeypress);

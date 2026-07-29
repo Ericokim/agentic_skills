@@ -42,7 +42,11 @@ npx -y github:Ericokim/agentic_skills#v0.2.0 add -a claude-code
 npx -y github:Ericokim/agentic_skills#v0.2.0 add
 ```
 
-One command: it writes `skills.json` if there is not one yet, then installs. With no source given, it installs its own nine skills. `add` finds every skill in a multi-skill source and opens a picker to choose from; add `--all` to take them all without being asked, which is also what happens automatically when there is no terminal to prompt on.
+**Run it from GitHub, not npm.** `agentic` and `agentic-skills` are already taken on npm by unrelated packages. Add it as a dependency instead (`npm i -D github:Ericokim/agentic_skills#v0.2.0`) and the bare `agentic` command works, which is how the rest of this README writes it.
+
+**Pin the tag.** `#v0.2.0` fixes both the tool and the skills to one release, so a whole team gets the same thing instead of whatever `main` happens to be that day. `-y` skips npx's install prompt, which otherwise blocks any script or CI job.
+
+**Picking skills.** On a terminal, a source with more than one skill opens a picker to choose from. `--all` takes every skill without asking, which is also what happens automatically when there is no terminal to prompt on.
 
 ```text
 ✓ wrote skills.json
@@ -66,16 +70,6 @@ Found 9 skills in github:Ericokim/agentic_skills#v0.2.0
 Then run `/audit` in your agent. It reads your manifests and CI config, **runs your build and test commands rather than assuming they work**, and writes `AGENTS.md` with what is actually true. Anything it could not verify is recorded as unknown rather than guessed.
 
 `add` writes `skills.json` on its first run, detecting your agent tools from `.claude/`, `.agents/`, and `.cursor/`. Override with `-a claude-code,codex` if it guesses wrong.
-
-**Run it from GitHub, not npm.** `agentic` and `agentic-skills` are taken on npm by unrelated packages. Installed globally or as a dev dependency the command is just `agentic`, which is how it is written from here on.
-
-**Pin the tag.** `#v0.2.0` fixes both the tool and the skills to one release, so a whole team gets the same thing instead of whatever `main` happens to be that day. `-y` skips npx's install prompt, which otherwise blocks any script or CI job.
-
-| | Use |
-|---|---|
-| Trying it out | `npx -y github:Ericokim/agentic_skills add` |
-| Team or CI | `npx -y github:Ericokim/agentic_skills#v0.2.0 add` |
-| Daily driver | `npm i -D github:Ericokim/agentic_skills#v0.2.0`, then `agentic` |
 
 ---
 

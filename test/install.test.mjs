@@ -18,6 +18,7 @@ import { init } from '../src/commands/init.mjs';
 import { commitInstall, detectDrift, discoverSkills, locateSkill, prepareInstall } from '../src/install.mjs';
 import { readLock, writeLock } from '../src/lock.mjs';
 import { defaultManifest, writeManifest } from '../src/manifest.mjs';
+import { __resetOutputClosedForTest } from '../src/ui.mjs';
 import { captureOutput } from './.capture-output.mjs';
 
 const GOOD = `---
@@ -301,6 +302,59 @@ test('add installs every skill from a multi-skill source when no name is given',
 
   const manifest = JSON.parse(await readFile(join(root, 'skills.json'), 'utf8'));
   assert.deepEqual(Object.keys(manifest.skills).sort(), ['alpha', 'beta', 'gamma']);
+});
+
+// This is the regression that matters: piping `agentic add` into `head` (or
+// anything else that closes the read end early) must not abandon an install
+// half finished. The old handler in cli.mjs called process.exit(0) the
+// instant stdout raised EPIPE, which could fire mid-loop and skip the
+// manifest and lockfile writes that happen after it. Here nothing ever reads
+// stdout at all: every write throws EPIPE synchronously, from the very first
+// one, standing in for a pipe that is closed before the install even starts.
+test('installing a multi-skill source completes and records every skill even though stdout throws EPIPE on every write', async () => {
+  const root = await project();
+  const names = ['alpha', 'beta', 'gamma', 'delta', 'epsilon'];
+  const src = await multiSkillSource(names);
+
+  const originalWrite = process.stdout.write.bind(process.stdout);
+  let writeAttempts = 0;
+  process.stdout.write = () => {
+    writeAttempts += 1;
+    const error = new Error('EPIPE');
+    error.code = 'EPIPE';
+    throw error;
+  };
+
+  let code;
+  try {
+    code = await add({
+      root,
+      spec: src,
+      name: null,
+      only: null,
+      targets: ['claude-code'],
+      cacheDir: tmpdir(),
+      dryRun: false,
+      force: false,
+      cwd: root,
+    });
+  } finally {
+    process.stdout.write = originalWrite;
+    // outputClosed is module state in src/ui.mjs, shared by every test in
+    // this process. Without resetting it here, every test that runs after
+    // this one in this file would find output already silenced.
+    __resetOutputClosedForTest();
+  }
+
+  assert.equal(code, 0);
+  assert.ok(writeAttempts >= 1, 'the mock must actually have been exercised by at least one write');
+
+  for (const name of names) {
+    await readFile(join(root, `.claude/skills/${name}/SKILL.md`), 'utf8');
+  }
+
+  const manifest = JSON.parse(await readFile(join(root, 'skills.json'), 'utf8'));
+  assert.deepEqual(Object.keys(manifest.skills).sort(), [...names].sort());
 });
 
 test('add never opens the picker unless the caller asks for it', async () => {

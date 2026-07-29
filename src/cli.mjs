@@ -23,13 +23,6 @@ import { STANDARD_VERSION } from './standard/index.mjs';
 import { TARGETS } from './targets/index.mjs';
 import { bold, dim, fail, line } from './ui.mjs';
 
-// Piping into head or less closes stdout early. That is normal use, not a
-// crash, so exit quietly instead of throwing an unhandled EPIPE.
-process.stdout.on('error', (error) => {
-  if (error.code === 'EPIPE') process.exit(0);
-  throw error;
-});
-
 const BOOLEAN_FLAGS = new Set(['dry-run', 'force', 'help', 'version', 'all', 'plan']);
 
 /** Parse `command args --flags` without a dependency. */

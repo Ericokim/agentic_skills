@@ -856,7 +856,7 @@ const ALL = [
 export const SECTIONS = ALL;
 ```
 
-Note: `header` and `framework-warning` carry `number: null` and must sort before section 1, so replace the sort with the explicit order above rather than sorting. The declared order in `ALL` is the emitted order.
+The array order IS the document order. Task 3 already removed sorting for this reason: `header` and `framework-warning` are unnumbered and belong before section 1, while `definition-of-done`, `completion-report`, and `operating-sequence` are unnumbered and belong after section 23. No sort on `number` can express both, so position in the array decides. Keep the numbered sections in ascending order within it, which the existing test checks.
 
 - [ ] **Step 5: Run the test and watch it pass**
 

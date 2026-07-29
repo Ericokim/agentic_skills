@@ -79,3 +79,20 @@ test('is pure: the same snapshot gives the same profile', () => {
   const s = snap({ 'package.json': '{"dependencies":{"pg":"^8"}}' });
   assert.deepEqual(profile(s), profile(s));
 });
+
+test('a CI workflow counts as evidence for commands', () => {
+  const { signals } = profile(snap({ '.github/workflows/ci.yml': 'name: check' }));
+  assert.equal(signals.commands.present, true);
+  assert.ok(signals.commands.evidence.includes('.github/workflows/ci.yml'));
+});
+
+test('a utility dependency is not a framework', () => {
+  const { signals } = profile(snap({ 'package.json': '{"dependencies":{"lodash":"^4"}}' }));
+  assert.equal(signals.frameworks.present, false);
+});
+
+test('a recognised framework is detected with its version', () => {
+  const { signals } = profile(snap({ 'package.json': '{"dependencies":{"next":"15.0.0","lodash":"^4"}}' }));
+  assert.equal(signals.frameworks.present, true);
+  assert.deepEqual(signals.frameworks.detail, { next: '15.0.0' });
+});

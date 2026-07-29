@@ -14,6 +14,13 @@ const DEPENDENCY_HINTS = {
   tests: ['vitest', 'jest', 'mocha', 'ava', 'tap', '@playwright/test'],
 };
 
+/** Recognised framework names. */
+const FRAMEWORK_NAMES = [
+  'next', 'react', 'vue', 'svelte', '@sveltejs/kit', 'nuxt', '@angular/core',
+  'solid-js', 'preact', 'astro', 'remix', '@remix-run/react',
+  'express', 'fastify', 'koa', 'hapi', '@nestjs/core', 'hono',
+];
+
 /** Path patterns that imply each signal. */
 const PATH_HINTS = {
   database: [/^(migrations|db\/migrations|prisma|supabase\/migrations)\//],
@@ -70,9 +77,13 @@ export function profile(snapshot) {
     for (const [id, names] of Object.entries(DEPENDENCY_HINTS)) {
       if (deps.some((dep) => names.includes(dep))) mark(signals[id], path);
     }
-    if (manifest.dependencies || manifest.devDependencies) {
+    const allDeps = { ...(manifest.dependencies ?? {}), ...(manifest.devDependencies ?? {}) };
+    const recognizedFrameworks = Object.fromEntries(
+      Object.entries(allDeps).filter(([name]) => FRAMEWORK_NAMES.includes(name))
+    );
+    if (Object.keys(recognizedFrameworks).length > 0) {
       mark(signals.frameworks, path);
-      signals.frameworks.detail = { ...(signals.frameworks.detail ?? {}), ...(manifest.dependencies ?? {}) };
+      signals.frameworks.detail = { ...(signals.frameworks.detail ?? {}), ...recognizedFrameworks };
     }
     if (manifest.scripts && Object.keys(manifest.scripts).length > 0) {
       mark(signals.commands, path);

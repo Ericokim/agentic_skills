@@ -52,3 +52,10 @@ test('an unreadable root produces an empty snapshot rather than throwing', async
   assert.deepEqual(snap.paths, []);
   assert.deepEqual(snap.files, {});
 });
+
+test('keeps .github so CI config can be read as evidence', async () => {
+  const root = await repo({ '.github/workflows/ci.yml': 'name: check\n' });
+  const snap = await takeSnapshot(root);
+  assert.ok(snap.paths.includes('.github/workflows/ci.yml'));
+  assert.equal(snap.files['.github/workflows/ci.yml'], 'name: check\n');
+});

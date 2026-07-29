@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+*.log
+
+# agentic's resolver cache
+.agentic-cache/
+
+# scratch
+tmp/

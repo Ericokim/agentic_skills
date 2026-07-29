@@ -1,0 +1,121 @@
+import { readFile, readdir, stat } from 'node:fs/promises';
+import { basename, dirname, join, relative } from 'node:path';
+
+import { compile } from '../compile.mjs';
+import { parseSkill } from '../skill.mjs';
+import { STANDARD_VERSION } from '../standard/index.mjs';
+import { bold, dim, line, reportViolations, symbol, yellow } from '../ui.mjs';
+import { BUDGETS, validateSkill } from '../validate.mjs';
+
+/** Warn while a skill is still passing, so growth is visible before it fails. */
+const WARN_AT = 0.8;
+
+/** Every SKILL.md at or under a path. */
+async function findSkills(target) {
+  const info = await stat(target);
+  if (info.isFile()) return [target];
+
+  const found = [];
+  const walk = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) await walk(path);
+      else if (entry.name === 'SKILL.md') found.push(path);
+    }
+  };
+  await walk(target);
+  return found.sort();
+}
+
+const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
+
+/**
+ * What this skill will cost in context once installed.
+ *
+ * Measures the compiled output, not the source. The source is what you edit;
+ * the compiled file is what an agent loads on every single invocation, and it
+ * is larger because the standard's blocks are injected into it. Reporting the
+ * source size would understate the only number that actually costs anything.
+ */
+function contextCost(raw) {
+  try {
+    return Buffer.byteLength(compile(parseSkill(raw)), 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Validate skill sources without installing anything.
+ *
+ * The authoring loop and the CI gate, and the same code path `add` runs, so a
+ * green validate means installable.
+ */
+export async function validate({ root, target }) {
+  let paths;
+  try {
+    paths = await findSkills(target);
+  } catch (error) {
+    line(`${symbol.fail} cannot read ${target}: ${error.message}`);
+    return 1;
+  }
+
+  if (paths.length === 0) {
+    line(`${symbol.warn} no SKILL.md found under ${bold(relative(root, target) || target)}`);
+    return 1;
+  }
+
+  let failed = 0;
+  let total = 0;
+  let largest = { name: null, bytes: 0 };
+
+  line();
+  for (const path of paths) {
+    const raw = await readFile(path, 'utf8');
+    const name = basename(dirname(path));
+    const violations = validateSkill(raw, { dirname: name });
+
+    const source = Buffer.byteLength(raw, 'utf8');
+    if (source > BUDGETS.skillBytes * WARN_AT && source <= BUDGETS.skillBytes) {
+      violations.push({
+        rule: 'size-budget',
+        severity: 'warning',
+        message: `source is ${kb(source)}, ${Math.round((source / BUDGETS.skillBytes) * 100)}% of the ${kb(BUDGETS.skillBytes)} budget, so prune before adding more`,
+      });
+    }
+
+    if (violations.some((v) => v.severity === 'error')) failed += 1;
+    reportViolations(relative(root, path) || path, violations);
+
+    const cost = contextCost(raw);
+    if (cost !== null) {
+      total += cost;
+      if (cost > largest.bytes) largest = { name, bytes: cost };
+    }
+  }
+
+  line();
+  const summary = `${paths.length} ${paths.length === 1 ? 'skill' : 'skills'} checked against standard ${STANDARD_VERSION}`;
+
+  if (failed > 0) {
+    line(`${symbol.fail} ${summary}, ${bold(String(failed))} failing`);
+    line(dim('  a failing skill cannot be installed, so fix it here, not at install time'));
+    return 1;
+  }
+
+  line(`${symbol.ok} ${summary}, all pass`);
+  if (largest.name) {
+    const each = total / paths.length;
+    line(
+      dim(
+        `  context cost once installed: ${kb(total)} across all, ${kb(each)} average, largest is ${largest.name} at ${kb(largest.bytes)}`,
+      ),
+    );
+    line(dim('  only the skills an agent actually loads cost anything, one at a time'));
+  }
+  if (largest.bytes > BUDGETS.skillBytes) {
+    line(yellow(`  ${largest.name} compiles above the source budget, so consider splitting it`));
+  }
+  return 0;
+}

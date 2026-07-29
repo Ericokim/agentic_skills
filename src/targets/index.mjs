@@ -1,0 +1,46 @@
+// Target adapters: where an installed skill goes, and in what dialect.
+//
+// Targets are deliberately the thinnest layer in the pipeline. Every agent tool
+// reads the same compiled markdown; they disagree only about the path and the
+// frontmatter shape. Keeping validation and compilation out of here is what
+// stops a fix to the evidence rule needing four edits.
+//
+// Pure: a target plans files, it does not write them. The caller owns the disk.
+
+import * as claudeCode from './claude-code.mjs';
+import * as codex from './codex.mjs';
+import * as cursor from './cursor.mjs';
+import * as generic from './generic.mjs';
+
+export const TARGETS = [claudeCode, codex, generic, cursor];
+
+export const DEFAULT_TARGET = claudeCode.id;
+
+export function targetById(id) {
+  return TARGETS.find((target) => target.id === id);
+}
+
+/**
+ * Plan the files one target would write for one skill.
+ *
+ * @param {string} targetId
+ * @param {{root: string, name: string, compiled: string, skill: object}} context
+ * @returns {Array<{path: string, contents: string}>}
+ */
+export function planEmit(targetId, context) {
+  const target = targetById(targetId);
+  if (!target) {
+    throw new Error(
+      `unknown target "${targetId}", so use one of ${TARGETS.map((t) => t.id).join(', ')}`,
+    );
+  }
+  return target.plan(context);
+}
+
+/** Directories that, if present, suggest a target is in use in this project. */
+export function detectionHints() {
+  return TARGETS.filter((target) => target.detect).map((target) => ({
+    id: target.id,
+    dir: target.detect,
+  }));
+}

@@ -1,0 +1,29 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: Tests and standard
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # Nothing to install: zero dependencies, stdlib only.
+      - name: Tests
+        run: npm test
+
+      - name: The standard, against this repo's own skills
+        run: npm run validate

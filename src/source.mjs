@@ -1,0 +1,95 @@
+// Parses a source spec string into something the fetcher can act on.
+//
+// Pure: string in, descriptor out. Nothing here touches the network, so every
+// spec form is testable without a repo to clone.
+//
+// Forms:
+//   github:owner/repo[/subpath][#ref]
+//   owner/repo[/subpath][#ref]              shorthand for github
+//   git+<url>[#ref]                         any git remote
+//   file:<path> | ./path | ../path | /path  a local directory
+
+export class SourceParseError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'SourceParseError';
+  }
+}
+
+function descriptor(fields) {
+  return {
+    ref: null,
+    subpath: null,
+    path: null,
+    url: null,
+    ...fields,
+    toString() {
+      if (this.kind === 'file') return `file:${this.path}`;
+      const repo = this.shorthand ?? this.url;
+      const subpath = this.subpath ? `/${this.subpath}` : '';
+      const ref = this.ref ? `#${this.ref}` : '';
+      return `${repo}${subpath}${ref}`;
+    },
+  };
+}
+
+/** Split a trailing `#ref` off a spec. */
+function splitRef(spec) {
+  const hash = spec.indexOf('#');
+  if (hash === -1) return { rest: spec, ref: null };
+  return { rest: spec.slice(0, hash), ref: spec.slice(hash + 1) || null };
+}
+
+function parseGithub(body, ref) {
+  const segments = body.split('/').filter(Boolean);
+  if (segments.length < 2) {
+    throw new SourceParseError(
+      `github source needs owner/repo, got "${body}" (example: github:eric/agentic_skills#v1.0.0)`,
+    );
+  }
+  const [owner, repo, ...rest] = segments;
+  return descriptor({
+    kind: 'git',
+    url: `https://github.com/${owner}/${repo}.git`,
+    shorthand: `github:${owner}/${repo}`,
+    subpath: rest.length > 0 ? rest.join('/') : null,
+    ref,
+  });
+}
+
+/**
+ * @param {string} spec
+ * @returns {{kind: 'git'|'file', url: string|null, path: string|null, ref: string|null, subpath: string|null}}
+ */
+export function parseSource(spec) {
+  if (typeof spec !== 'string' || spec.trim() === '') {
+    throw new SourceParseError('empty source spec');
+  }
+  const trimmed = spec.trim();
+
+  if (trimmed.startsWith('file:')) {
+    return descriptor({ kind: 'file', path: trimmed.slice('file:'.length) });
+  }
+  if (trimmed.startsWith('./') || trimmed.startsWith('../') || trimmed.startsWith('/')) {
+    return descriptor({ kind: 'file', path: trimmed });
+  }
+
+  const { rest, ref } = splitRef(trimmed);
+
+  if (rest.startsWith('github:')) {
+    return parseGithub(rest.slice('github:'.length), ref);
+  }
+  if (rest.startsWith('git+')) {
+    return descriptor({ kind: 'git', url: rest.slice('git+'.length), ref });
+  }
+  if (/^(https?|ssh):\/\//.test(rest) || rest.startsWith('git@')) {
+    return descriptor({ kind: 'git', url: rest, ref });
+  }
+  if (/^[\w.-]+\/[\w.-]+/.test(rest)) {
+    return parseGithub(rest, ref);
+  }
+
+  throw new SourceParseError(
+    `unrecognized source "${spec}", so use github:owner/repo, git+<url>, or a local path`,
+  );
+}

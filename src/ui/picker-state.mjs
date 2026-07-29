@@ -12,16 +12,25 @@
 // with a letter that some other picker might bind to a shortcut.
 
 /**
- * @param {{name: string, description: string}[]} items
+ * @param {{name: string, description?: string, label?: string, hint?: string}[]} items
+ * @param {{group?: string, always?: string[], alwaysLabel?: string, selected?: string[]}} [options]
+ *   `group` is an optional header rendered above the selectable list (step 2's
+ *   "Additional agents"). `always`/`alwaysLabel` describe entries that are
+ *   shown above the list but are not part of it and cannot be selected (step
+ *   2's Universal section). `selected` preselects items by name, so a caller
+ *   can seed the picker with whatever detection already decided.
  */
-export function initialState(items) {
+export function initialState(items, { group = null, always = [], alwaysLabel = null, selected = [] } = {}) {
   return {
     items: items.slice(),
     cursor: 0,
-    selected: new Set(),
+    selected: new Set(selected),
     search: '',
     done: false,
     cancelled: false,
+    group,
+    always,
+    alwaysLabel,
   };
 }
 
@@ -33,6 +42,22 @@ function matches(item, search) {
 /** Items currently shown, applying the search filter. */
 export function visible(state) {
   return state.items.filter((item) => matches(item, state.search));
+}
+
+/**
+ * "Selected: a, b, c" footer text, in item order (not selection order), with
+ * a "+N more" tail once more than `limit` are selected rather than listing
+ * every one of them - a footer that grows without bound as more get picked
+ * is what this caps.
+ */
+export function selectedSummary(state, { limit = 3 } = {}) {
+  const chosen = state.items
+    .filter((item) => state.selected.has(item.name))
+    .map((item) => item.label ?? item.name);
+
+  if (chosen.length === 0) return 'Selected: (none)';
+  if (chosen.length <= limit) return `Selected: ${chosen.join(', ')}`;
+  return `Selected: ${chosen.slice(0, limit).join(', ')} +${chosen.length - limit} more`;
 }
 
 /** Cursor pulled back inside [0, length - 1], or 0 when the list is empty. */

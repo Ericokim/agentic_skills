@@ -12,9 +12,9 @@
 
 import readline from 'node:readline';
 
-import { bold, cyan, dim, ESC } from '../ui.mjs';
+import { bold, cyan, dim, ESC, symbol } from '../ui.mjs';
 import { frameActive, frameBar, frameItem, frameLine } from './frame.mjs';
-import { initialState, reduce, visible } from './picker-state.mjs';
+import { initialState, reduce, selectedSummary, visible } from './picker-state.mjs';
 
 const HIDE_CURSOR = `${ESC}[?25l`;
 const SHOW_CURSOR = `${ESC}[?25h`;
@@ -42,51 +42,94 @@ function wrap(text, width) {
   return lines;
 }
 
-function renderFrame(state, columns) {
+function renderFrame(state, columns, title) {
   const items = visible(state);
   const lines = [];
+  // Step 2 (choosing agent targets) turns on a second layout: a Universal
+  // section of always-included, unselectable entries, a group header over
+  // the selectable list, and a "Selected: ..." footer instead of the
+  // description panel step 1 uses. Neither `always` nor `group` is ever set
+  // by step 1's call, so that layout renders exactly as it always has.
+  const extended = state.always.length > 0 || Boolean(state.group);
 
-  lines.push(frameActive(bold('Select skills to install')));
+  lines.push(frameActive(bold(title)));
+
+  // Step 1 never sets `always`, so this whole block - including the extra
+  // rail line separating it from the search box - is invisible there, and
+  // that layout is exactly what it always was: header straight into Search.
+  if (state.always.length > 0) {
+    lines.push(frameBar());
+    if (state.alwaysLabel) lines.push(frameLine(bold(state.alwaysLabel)));
+    for (const entry of state.always) lines.push(frameLine(`  ${symbol.bullet} ${entry}`));
+    lines.push(frameBar());
+  }
+
+  if (state.group) lines.push(frameLine(bold(state.group)));
   lines.push(frameLine(`Search: ${state.search}`));
   lines.push(frameLine(dim(HINT)));
   lines.push(frameBar());
 
   if (items.length === 0) {
-    lines.push(frameLine(dim('no skills match')));
+    lines.push(frameLine(dim('nothing matches')));
   } else {
     items.forEach((item, index) => {
       const onCursor = index === state.cursor;
       const box = state.selected.has(item.name) ? '◉' : '○';
       const marker = onCursor ? cyan('❯') : ' ';
-      const name = onCursor ? bold(item.name) : item.name;
-      lines.push(frameItem(`${marker} ${box} ${name}`));
+      const label = item.label ?? item.name;
+      const name = onCursor ? bold(label) : label;
+      const hint = item.hint ? ` ${dim(`(${item.hint})`)}` : '';
+      lines.push(frameItem(`${marker} ${box} ${name}${hint}`));
     });
   }
 
   lines.push(frameBar());
-  lines.push(frameLine(bold('Description')));
-  const current = items[Math.min(state.cursor, items.length - 1)];
-  const wrapped = current ? wrap(current.description ?? '', Math.max(10, columns - 4)).slice(0, 3) : [];
-  if (wrapped.length === 0) lines.push(frameLine(dim('(none)')));
-  for (const wrappedLine of wrapped) lines.push(frameLine(dim(wrappedLine)));
+  if (extended) {
+    lines.push(frameLine(selectedSummary(state)));
+  } else {
+    lines.push(frameLine(bold('Description')));
+    const current = items[Math.min(state.cursor, items.length - 1)];
+    const wrapped = current ? wrap(current.description ?? '', Math.max(10, columns - 4)).slice(0, 3) : [];
+    if (wrapped.length === 0) lines.push(frameLine(dim('(none)')));
+    for (const wrappedLine of wrapped) lines.push(frameLine(dim(wrappedLine)));
+  }
 
   return lines;
 }
 
 /**
- * Run the interactive skill picker.
+ * Run the interactive multiselect picker.
  *
- * @param {{name: string, description: string}[]} items
- * @param {{input?: import('node:tty').ReadStream, output?: import('node:tty').WriteStream}} streams
- * @returns {Promise<string[] | null>} chosen skill names, or null when cancelled
+ * @param {{name: string, description?: string, label?: string, hint?: string}[]} items
+ * @param {{
+ *   input?: import('node:tty').ReadStream,
+ *   output?: import('node:tty').WriteStream,
+ *   title?: string,
+ *   group?: string,
+ *   always?: string[],
+ *   alwaysLabel?: string,
+ *   selected?: string[],
+ * }} options
+ * @returns {Promise<string[] | null>} chosen item names, or null when cancelled
  */
-export function pickSkills(items, { input = process.stdin, output = process.stdout } = {}) {
+export function pickSkills(
+  items,
+  {
+    input = process.stdin,
+    output = process.stdout,
+    title = 'Select skills to install',
+    group = null,
+    always = [],
+    alwaysLabel = null,
+    selected = [],
+  } = {},
+) {
   // Never enter the loop off a TTY: there is no keypress stream to read from,
   // and raw mode on a non-TTY stream either throws or does nothing useful.
   if (!input.isTTY || !output.isTTY) return Promise.resolve(null);
 
   return new Promise((resolvePromise, rejectPromise) => {
-    let state = initialState(items);
+    let state = initialState(items, { group, always, alwaysLabel, selected });
     let linesWritten = 0;
     let restored = false;
 
@@ -130,7 +173,7 @@ export function pickSkills(items, { input = process.stdin, output = process.stdo
 
     function render() {
       const columns = output.columns || 80;
-      const frame = renderFrame(state, columns);
+      const frame = renderFrame(state, columns, title);
       if (linesWritten > 0) output.write(cursorUp(linesWritten));
       const rows = Math.max(frame.length, linesWritten);
       for (let index = 0; index < rows; index += 1) {

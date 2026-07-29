@@ -23,7 +23,7 @@ import { STANDARD_VERSION } from './standard/index.mjs';
 import { TARGETS } from './targets/index.mjs';
 import { bold, dim, fail, line } from './ui.mjs';
 
-const BOOLEAN_FLAGS = new Set(['dry-run', 'force', 'help', 'version', 'all', 'plan']);
+const BOOLEAN_FLAGS = new Set(['dry-run', 'force', 'help', 'version', 'all', 'plan', 'global']);
 
 /** Parse `command args --flags` without a dependency. */
 export function parseArgv(argv) {
@@ -80,7 +80,9 @@ ${bold('OPTIONS')}
   -n, --name <name>         name to install a source under
       --only <names>        add: install just these skills from a multi-skill
                              source (comma separated)
-      --all                 add: install every skill, skipping the picker
+      --all                 add: install every skill, skipping the wizard
+      --global              add: install to the home directory instead of the
+                             project, skipping the scope step of the wizard
       --answers <file>      context: a JSON file of cited answers to verify
       --root <dir>          project root (default: the working directory)
       --cache <dir>         source cache (default: ~/.cache/agentic/sources)
@@ -91,13 +93,16 @@ ${bold('OPTIONS')}
   -h, --help                show this
   -v, --version             show the versions
 
-${bold('PICKER')}
-  Running "agentic add <source>" in a terminal, against a source with more
-  than one skill and no --only, --name, or --all, opens an interactive
-  picker: ↑↓ move, space select, enter confirm, esc or ctrl+c cancels.
-  Typing filters by name, with no reserved letters. Cancelling installs
-  nothing and exits clean. Piped or non-interactive runs skip it and
-  install everything, same as --all.
+${bold('WIZARD')}
+  Running "agentic add <source>" in a terminal without --all opens a three
+  step wizard: which skills (when the source offers more than one and
+  --only/--name have not already chosen), which agent tools to install to
+  (unless -a/--target already said), and which scope to install into
+  (unless --global already forced it). ↑↓ move, space select, enter
+  confirm, esc or ctrl+c cancels. Typing filters by name, with no reserved
+  letters. Cancelling any step installs nothing and exits clean. Piped or
+  non-interactive runs skip the whole wizard and install everything to the
+  detected targets in project scope, same as --all.
 
 ${bold('SOURCES')}
   github:owner/repo#v1.0.0            a tag, branch, or commit
@@ -168,6 +173,7 @@ export async function main(argv) {
         name: flags.name ?? null,
         only: flags.only ?? null,
         all: Boolean(flags.all),
+        global: Boolean(flags.global),
       });
     case 'update':
       return update({ ...shared, name: args[0] ?? null });

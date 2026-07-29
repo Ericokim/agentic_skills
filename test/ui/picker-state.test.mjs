@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { initialState, reduce, visible } from '../../src/ui/picker-state.mjs';
+import { initialState, reduce, selectedSummary, visible } from '../../src/ui/picker-state.mjs';
 
 const ITEMS = [
   { name: 'architect', description: 'Design a feature before writing code.' },
@@ -218,4 +218,99 @@ test('an unrecognised key is a no-op', () => {
   assert.equal(after.cursor, state.cursor);
   assert.equal(after.search, state.search);
   assert.equal(after.done, false);
+});
+
+// --- Step 2 additions: group header, always-included entries, hints, and
+// the "Selected: ..." footer. Every test above this line must keep passing
+// unchanged - these only cover the new, optional behaviour.
+
+const AGENT_ITEMS = [
+  { name: 'claude-code', label: 'Claude Code', hint: '.claude/skills' },
+  { name: 'codex', label: 'Codex', hint: '.agents/skills' },
+  { name: 'cursor', label: 'Cursor', hint: '.cursor/rules' },
+];
+
+test('initialState with no options behaves exactly as before: no group, no always entries, nothing preselected', () => {
+  const state = initialState(AGENT_ITEMS);
+  assert.equal(state.group, null);
+  assert.deepEqual(state.always, []);
+  assert.equal(state.alwaysLabel, null);
+  assert.equal(state.selected.size, 0);
+});
+
+test('initialState carries an optional group header through unchanged', () => {
+  const state = initialState(AGENT_ITEMS, { group: 'Additional agents' });
+  assert.equal(state.group, 'Additional agents');
+});
+
+test('initialState carries an optional always-included list and label through unchanged', () => {
+  const state = initialState(AGENT_ITEMS, {
+    always: ['Codex', 'Gemini CLI', 'any Agent Skills client'],
+    alwaysLabel: 'Universal (.agents/skills) — always included',
+  });
+  assert.deepEqual(state.always, ['Codex', 'Gemini CLI', 'any Agent Skills client']);
+  assert.equal(state.alwaysLabel, 'Universal (.agents/skills) — always included');
+});
+
+test('the always list is not part of the selectable items and cannot be reached by the cursor', () => {
+  const state = initialState(AGENT_ITEMS, { always: ['Codex', 'Gemini CLI'] });
+  assert.deepEqual(
+    visible(state).map((item) => item.name),
+    ['claude-code', 'codex', 'cursor'],
+  );
+});
+
+test('initialState preselects items by name', () => {
+  const state = initialState(AGENT_ITEMS, { selected: ['claude-code'] });
+  assert.ok(state.selected.has('claude-code'));
+  assert.equal(state.selected.size, 1);
+});
+
+test('a preselected item can be toggled off like any other', () => {
+  let state = initialState(AGENT_ITEMS, { selected: ['claude-code'] });
+  state = reduce(state, KEY.space); // cursor starts on claude-code
+  assert.ok(!state.selected.has('claude-code'));
+});
+
+test('items carry an optional hint alongside name and label', () => {
+  const state = initialState(AGENT_ITEMS);
+  assert.equal(visible(state)[0].hint, '.claude/skills');
+});
+
+test('selectedSummary reports "(none)" when nothing is selected', () => {
+  assert.equal(selectedSummary(initialState(AGENT_ITEMS)), 'Selected: (none)');
+});
+
+test('selectedSummary lists chosen items by label, in item order, not selection order', () => {
+  let state = initialState(AGENT_ITEMS, { selected: ['cursor'] });
+  state = reduce(state, KEY.down); // -> codex
+  state = reduce(state, KEY.space); // select codex too
+  assert.equal(selectedSummary(state), 'Selected: Codex, Cursor');
+});
+
+test('selectedSummary falls back to name when an item has no label', () => {
+  const state = initialState(ITEMS, { selected: ['architect'] });
+  assert.equal(selectedSummary(state), 'Selected: architect');
+});
+
+test('selectedSummary caps at three names and adds a "+N more" tail beyond that', () => {
+  const items = [
+    { name: 'a', label: 'Alpha' },
+    { name: 'b', label: 'Bravo' },
+    { name: 'c', label: 'Charlie' },
+    { name: 'd', label: 'Delta' },
+    { name: 'e', label: 'Echo' },
+  ];
+  const state = initialState(items, { selected: ['a', 'b', 'c', 'd', 'e'] });
+  assert.equal(selectedSummary(state), 'Selected: Alpha, Bravo, Charlie +2 more');
+});
+
+test('selectedSummary shows every name when the count is exactly the limit', () => {
+  const items = [
+    { name: 'a', label: 'Alpha' },
+    { name: 'b', label: 'Bravo' },
+    { name: 'c', label: 'Charlie' },
+  ];
+  const state = initialState(items, { selected: ['a', 'b', 'c'] });
+  assert.equal(selectedSummary(state), 'Selected: Alpha, Bravo, Charlie');
 });

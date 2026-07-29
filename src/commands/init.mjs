@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { pathExists } from '../fs-util.mjs';
@@ -22,10 +23,17 @@ async function detectTargets(root) {
  * Shared by `init` and by `add`, which creates the manifest itself when there
  * is not one rather than making a separate command a prerequisite for
  * installing anything.
+ *
+ * `root` is where the manifest is written, which for a global-scope install
+ * is ~/.agentic rather than the project. `detectRoot` (defaulting to `root`)
+ * is where target directories are looked for, which stays the project even
+ * then - a person's home directory having a stray .cursor folder says
+ * nothing about what this project uses.
  */
-export async function createManifest({ root, targets }) {
-  const detected = targets.length > 0 ? targets : await detectTargets(root);
+export async function createManifest({ root, targets, detectRoot = root }) {
+  const detected = targets.length > 0 ? targets : await detectTargets(detectRoot);
   const manifest = defaultManifest({ targets: detected });
+  await mkdir(root, { recursive: true });
   await writeManifest(root, manifest);
 
   line(`${symbol.ok} wrote ${bold(MANIFEST_FILE)}`);

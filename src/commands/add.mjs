@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { resolveSource } from '../fetch.mjs';
@@ -6,12 +6,45 @@ import { readIfPresent } from '../fs-util.mjs';
 import { discoverSkills, installOne } from '../install.mjs';
 import { readLock, writeLock } from '../lock.mjs';
 import { MANIFEST_FILE, readManifest, setSkill, writeManifest } from '../manifest.mjs';
+import { resolveRoots } from '../scope.mjs';
 import { parseSkill } from '../skill.mjs';
 import { githubShorthand, parseSource } from '../source.mjs';
+import { TARGETS } from '../targets/index.mjs';
 import { bold, dim, line, reportViolations, symbol } from '../ui.mjs';
-import { frameBar, frameClose, frameOpen, frameStep } from '../ui/frame.mjs';
+import { frameBar, frameClose, frameLine, frameOpen, frameStep } from '../ui/frame.mjs';
 import { pickSkills } from '../ui/picker.mjs';
+import { initialState, selectedSummary } from '../ui/picker-state.mjs';
+import { pickOne } from '../ui/select.mjs';
 import { createManifest } from './init.mjs';
+
+const GENERIC_TARGET_ID = 'generic';
+
+// The open .agents/skills layout every Agent Skills client can read without
+// its own adapter - what step 2 of the wizard calls "Universal". Kept as
+// prose here, not derived from the targets list, because it names clients
+// this package has no adapter for at all (Gemini CLI reads the open layout
+// directly and needs nothing from this project to do it).
+const UNIVERSAL_READERS = ['Codex', 'Gemini CLI', 'any Agent Skills client'];
+const UNIVERSAL_PATH = '.agents/skills';
+
+// Step 2 shows every target except the universal one, under a short label
+// and the path it writes to - targets/index.mjs's own `label` strings are
+// written for --help output and are too long for a picker row.
+const AGENT_SHORT_LABEL = { 'claude-code': 'Claude Code', codex: 'Codex', cursor: 'Cursor' };
+const AGENT_PATH = { 'claude-code': '.claude/skills', codex: '.agents/skills', cursor: '.cursor/rules' };
+
+const SCOPE_ITEMS = [
+  { id: 'project', label: 'Project', hint: 'Install in current directory, committed with your project' },
+  { id: 'global', label: 'Global', hint: 'Install in your home directory, available in every project' },
+];
+
+function agentItems() {
+  return TARGETS.filter((target) => target.id !== GENERIC_TARGET_ID).map((target) => ({
+    name: target.id,
+    label: AGENT_SHORT_LABEL[target.id] ?? target.label,
+    hint: AGENT_PATH[target.id],
+  }));
+}
 
 /**
  * What "add <source>" actually installs.
@@ -134,14 +167,29 @@ export async function add({
   cwd,
   all = false,
   interactive = false,
+  global = false,
+  home,
 }) {
-  let manifest = await readManifest(root);
+  // Where things actually land. Project scope (the default) is the project
+  // itself, exactly as every command has always behaved; --global moves both
+  // the installed skills and the manifest/lock tracking them into the home
+  // directory, resolved once here so everything below reads and writes
+  // through installRoot/manifestRoot rather than the bare project `root`.
+  // `home` is only ever supplied by tests - a real run always resolves it
+  // from os.homedir() inside resolveRoots.
+  let scope = global ? 'global' : 'project';
+  let { installRoot, manifestRoot } = resolveRoots({ scope, projectRoot: root, home });
+
+  let manifest = await readManifest(manifestRoot);
   if (!manifest) {
     // Requiring a separate command to create a file this one can create
     // itself is friction for no benefit: detect targets (or take --target)
     // exactly as init would, print the same line init prints, then keep
-    // going into the install below.
-    manifest = await createManifest({ root, targets });
+    // going into the install below. Detection always looks at the project
+    // directory, never the home directory, even for a global install: a
+    // stray .cursor folder in someone's home says nothing about what this
+    // project uses.
+    manifest = await createManifest({ root: manifestRoot, targets, detectRoot: root });
   }
 
   // A source is required to install anything. When the caller gave none and
@@ -175,37 +223,102 @@ export async function add({
     requests = Object.entries(manifest.skills).map(([key, value]) => ({ spec: value, name: key }));
   }
 
-  // A source that offers a choice gets one, in a terminal, unless the caller
-  // already said what it wants via --only, --name, or --all. Cancelling out
-  // of the picker installs nothing and still exits clean: a person browsing
-  // and changing their mind is not an error.
+  // Three interactive steps, in order: which skills, which agent tools to
+  // install to, and which scope to install into. Off a TTY, or with --all,
+  // none of this runs and behavior is exactly what it always was: install
+  // everything to the detected (or given) targets, in project scope.
   //
   // Whether stdin and stdout are actually a terminal is decided once by the
   // CLI entry point, the one place that legitimately reads ambient process
   // state, and handed down as `interactive`. add() never reads
   // process.stdin/process.stdout itself, and a caller that omits
   // `interactive` gets the safe, non-blocking default of false.
-  if (found && found.length > 1 && !only && !name && !all && interactive) {
-    const items = await skillDescriptions(found);
-
+  const runWizard = interactive && !all;
+  let wizardOpen = false;
+  const openWizard = () => {
+    if (wizardOpen) return;
+    wizardOpen = true;
     line(frameOpen('agentic'));
     line(frameBar());
+  };
+  // Cancelling any step - escape, ctrl+c, or losing the input stream - installs
+  // nothing and exits clean. A person browsing and changing their mind is not
+  // an error.
+  const cancelWizard = () => {
+    line(frameClose());
+    line(`${symbol.warn} cancelled: nothing installed`);
+    return 0;
+  };
+
+  // Step 1: which skills. Only offered when the source actually has more
+  // than one to choose from and the caller has not already narrowed it down
+  // with --only or --name.
+  if (runWizard && found && found.length > 1 && !only && !name) {
+    openWizard();
     line(frameStep(`Source: ${spec}`));
     line(frameBar());
     line(frameStep('Repository cloned'));
     line(frameBar());
     line(frameStep(`Found ${found.length} ${found.length === 1 ? 'skill' : 'skills'}`));
 
+    const items = await skillDescriptions(found);
     const chosen = await pickSkills(items);
-    line(frameClose());
 
-    if (chosen === null || chosen.length === 0) {
-      line(`${symbol.warn} cancelled: nothing installed`);
-      return 0;
-    }
+    if (chosen === null || chosen.length === 0) return cancelWizard();
+
+    line(frameStep('Select skills to install'));
+    for (const chosenName of chosen) line(frameLine(chosenName));
+
     const chosenNames = new Set(chosen);
     requests = requests.filter((request) => chosenNames.has(request.name));
   }
+
+  // Step 2: which agent tools to install to. Skipped when the caller already
+  // said via -a/--target; targetList stays whatever it always was in that
+  // case. The universal .agents/skills layout is never itself a choice here -
+  // every Agent Skills client reads it - so only the other targets are
+  // offered, preselected with whatever detection already chose.
+  let targetList = targets.length > 0 ? targets : manifest.targets;
+  if (runWizard && targets.length === 0) {
+    openWizard();
+    line(frameStep(`${TARGETS.length} agents`));
+
+    const preselected = manifest.targets.filter((id) => id !== GENERIC_TARGET_ID);
+    const chosenAgents = await pickSkills(agentItems(), {
+      title: 'Which agents do you want to install to?',
+      group: 'Additional agents',
+      always: UNIVERSAL_READERS,
+      alwaysLabel: `Universal (${UNIVERSAL_PATH}) — always included`,
+      selected: preselected,
+    });
+
+    if (chosenAgents === null) return cancelWizard();
+
+    line(frameStep('Which agents do you want to install to?'));
+    line(frameLine(selectedSummary(initialState(agentItems(), { selected: chosenAgents }))));
+
+    targetList = [...new Set([...chosenAgents, GENERIC_TARGET_ID])];
+    manifest = { ...manifest, targets: targetList };
+  }
+
+  // Step 3: installation scope. Skipped by --global, which already forced
+  // scope above; project is the default and is offered first.
+  if (runWizard && !global) {
+    openWizard();
+    const chosenScope = await pickOne(SCOPE_ITEMS, { title: 'Installation scope' });
+
+    if (chosenScope === null) return cancelWizard();
+
+    line(frameStep('Installation scope'));
+    line(frameLine(chosenScope === 'global' ? 'Global' : 'Project'));
+
+    if (chosenScope !== scope) {
+      scope = chosenScope;
+      ({ installRoot, manifestRoot } = resolveRoots({ scope, projectRoot: root, home }));
+    }
+  }
+
+  if (wizardOpen) line(frameClose());
 
   if (requests.length === 0) {
     line(`${symbol.warn} nothing to install: ${MANIFEST_FILE} lists no skills.`);
@@ -228,14 +341,13 @@ export async function add({
   }
   const nameWidth = multi ? Math.max(...requests.map((r) => (r.name ?? '').length)) : 0;
 
-  const lock = await readLock(root);
-  const targetList = targets.length > 0 ? targets : manifest.targets;
+  const lock = await readLock(manifestRoot);
   let updated = manifest;
   let failures = 0;
 
   for (const request of requests) {
     const result = await installOne({
-      root,
+      root: installRoot,
       name: request.name,
       spec: request.spec,
       targets: targetList,
@@ -270,7 +382,7 @@ export async function add({
       case 'planned':
         line(`${symbol.ok} ${bold(result.name)} ${dim('(dry run, nothing written)')}`);
         for (const file of result.prepared.files) {
-          line(`    ${dim(file.path.replace(`${root}/`, ''))}`);
+          line(`    ${dim(file.path.replace(`${installRoot}/`, ''))}`);
         }
         break;
 
@@ -300,8 +412,14 @@ export async function add({
   }
 
   if (!dryRun) {
-    await writeManifest(root, updated);
-    await writeLock(root, lock);
+    // manifestRoot may not exist yet - a fresh global install's ~/.agentic,
+    // most commonly - even though createManifest above already handles the
+    // case where the manifest itself was missing; this covers scope
+    // switching to global mid-wizard, after that check already ran against
+    // the old, project manifestRoot.
+    await mkdir(manifestRoot, { recursive: true });
+    await writeManifest(manifestRoot, updated);
+    await writeLock(manifestRoot, lock);
   }
 
   if (multi) {

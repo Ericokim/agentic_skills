@@ -636,6 +636,44 @@ test('add with no source and a non-empty manifest installs those entries, not th
   await readFile(join(root, '.claude/skills/build/SKILL.md'), 'utf8');
 });
 
+test('a global-scope install writes skills under the injected home and the manifest under <home>/.agentic, and writes nothing into the project directory', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'agentic-e2e-'));
+  const home = await mkdtemp(join(tmpdir(), 'agentic-home-'));
+  const spec = await sourceSkill('build', GOOD);
+
+  const code = await add({
+    root,
+    spec,
+    name: null,
+    only: null,
+    targets: ['claude-code'],
+    cacheDir: tmpdir(),
+    dryRun: false,
+    force: false,
+    cwd: root,
+    global: true,
+    home,
+    // interactive omitted: this is a non-interactive, scripted global
+    // install (what --global is for off a TTY), so the wizard must never
+    // run and never block on a keypress.
+  });
+
+  assert.equal(code, 0);
+
+  // The skill itself lands under the home directory, not the project.
+  await readFile(join(home, '.claude/skills/build/SKILL.md'), 'utf8');
+  await assert.rejects(() => readFile(join(root, '.claude/skills/build/SKILL.md'), 'utf8'));
+
+  // The manifest and lockfile are tracked under <home>/.agentic, not mixed
+  // into the home directory's root and not written into the project.
+  const manifest = JSON.parse(await readFile(join(home, '.agentic/skills.json'), 'utf8'));
+  assert.deepEqual(Object.keys(manifest.skills), ['build']);
+  await readFile(join(home, '.agentic/skills.lock'), 'utf8');
+
+  // Nothing at all was written into the project directory.
+  assert.deepEqual(await readdir(root), []);
+});
+
 test('init still creates skills.json, detecting targets, exactly as before', async () => {
   const root = await mkdtemp(join(tmpdir(), 'agentic-e2e-'));
 

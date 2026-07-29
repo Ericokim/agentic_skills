@@ -42,7 +42,7 @@ export function parseArgv(argv) {
       continue;
     }
     const name = token.replace(/^--?/, '');
-    const alias = { t: 'target', h: 'help', v: 'version', n: 'name' }[name] ?? name;
+    const alias = { t: 'target', a: 'target', h: 'help', v: 'version', n: 'name' }[name] ?? name;
 
     if (BOOLEAN_FLAGS.has(alias)) {
       flags[alias] = true;
@@ -75,8 +75,10 @@ ${bold('COMMANDS')}
   tokens [file.jsonl]       where the tokens went in a real session
 
 ${bold('OPTIONS')}
-  -t, --target <id>         override targets (repeatable, or comma separated)
+  -t, -a, --target <id>     override targets (repeatable, or comma separated)
   -n, --name <name>         name to install a source under
+      --only <names>        add: install just these skills from a multi-skill
+                             source (comma separated)
       --root <dir>          project root (default: the working directory)
       --cache <dir>         source cache (default: ~/.cache/agentic/sources)
       --top <n>             tokens: heaviest turns to show (default: 12)
@@ -143,7 +145,12 @@ export async function main(argv) {
     case 'init':
       return init(shared);
     case 'add':
-      return add({ ...shared, spec: args[0] ?? null, name: flags.name ?? null });
+      return add({
+        ...shared,
+        spec: args[0] ?? null,
+        name: flags.name ?? null,
+        only: flags.only ?? null,
+      });
     case 'update':
       return update({ ...shared, name: args[0] ?? null });
     case 'remove':

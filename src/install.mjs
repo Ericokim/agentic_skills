@@ -31,9 +31,18 @@ export class InstallError extends Error {
   }
 }
 
-/** Skill names a source directory offers, for a useful "not found" message. */
-async function listSkillNames(dir) {
-  const names = new Set();
+/**
+ * Every skill a source directory offers, so a source that provides many can be
+ * installed in one command instead of one per skill.
+ *
+ * Mirrors the layouts locateSkill already understands: a repo root full of
+ * skill folders, or the same one level down under skills/. A source that is a
+ * single skill at its own root (dir/SKILL.md itself) has nothing to discover
+ * here, on purpose - that one installs through the existing single-name path,
+ * unchanged.
+ */
+export async function discoverSkills(dir) {
+  const found = new Map();
   for (const root of [dir, join(dir, 'skills')]) {
     let entries;
     try {
@@ -42,11 +51,19 @@ async function listSkillNames(dir) {
       continue;
     }
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      if (await pathExists(join(root, entry.name, 'SKILL.md'))) names.add(entry.name);
+      if (!entry.isDirectory() || found.has(entry.name)) continue;
+      const path = join(root, entry.name);
+      if (await pathExists(join(path, 'SKILL.md'))) found.set(entry.name, path);
     }
   }
-  return [...names].sort();
+  return [...found.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, path]) => ({ name, path }));
+}
+
+/** Skill names a source directory offers, for a useful "not found" message. */
+async function listSkillNames(dir) {
+  return (await discoverSkills(dir)).map((skill) => skill.name);
 }
 
 /**

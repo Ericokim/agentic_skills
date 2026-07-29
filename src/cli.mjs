@@ -77,6 +77,7 @@ ${bold('COMMANDS')}
   tokens [file.jsonl]       where the tokens went in a real session
   profile                   show what this project looks like, and the evidence
   context                   plan an AGENTS.md, writing a draft and a brief
+  context --answers <file>  verify cited answers and write AGENTS.generated.md
 
 ${bold('OPTIONS')}
   -t, -a, --target <id>     override targets (repeatable, or comma separated)
@@ -84,6 +85,7 @@ ${bold('OPTIONS')}
       --only <names>        add: install just these skills from a multi-skill
                              source (comma separated)
       --all                 add: install every skill, skipping the picker
+      --answers <file>      context: a JSON file of cited answers to verify
       --root <dir>          project root (default: the working directory)
       --cache <dir>         source cache (default: ~/.cache/agentic/sources)
       --top <n>             tokens: heaviest turns to show (default: 12)
@@ -195,7 +197,7 @@ export async function main(argv) {
     case 'profile':
       return profileCommand({ root });
     case 'context':
-      return contextCommand({ root, plan: true });
+      return contextCommand({ root, plan: true, answers: flags.answers ? resolve(flags.answers) : null });
     default:
       fail(`unknown command "${command}"`);
       line(dim('run agentic --help for the list'));

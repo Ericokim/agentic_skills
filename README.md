@@ -311,6 +311,7 @@ The gate is layered, not magic. `/architect` names the source of every value a f
 | 💰 | `agentic tokens [file]` | Where the tokens went in a real session | 👁️ |
 | 🔎 | `agentic profile` | Show what this project looks like, and the evidence | 👁️ |
 | 📄 | `agentic context` | Plan an AGENTS.md, writing a draft and a brief | ✍️ |
+| 📄 | `agentic context --answers <file>` | Verify cited answers and write `AGENTS.generated.md` | ✍️ |
 
 <sub>✍️ writes files · 👁️ read only</sub>
 
@@ -318,6 +319,7 @@ The gate is layered, not magic. `/architect` names the source of every value a f
 |---|---|---|
 | `-t, --target <id>` | `init` `add` `update` | Override targets (repeatable, or comma separated) |
 | `-n, --name <name>` | `add` | Name to install a source under |
+| `--answers <file>` | `context` | A JSON file of cited answers to verify |
 | `--root <dir>` | all | Project root (default: working directory) |
 | `--cache <dir>` | `add` `update` | Source cache (default: `~/.cache/agentic/sources`) |
 | `--dry-run` | `add` `update` | Plan the work and write nothing |
@@ -420,8 +422,9 @@ agentic validate .claude/skills
 Skills know how to work. `AGENTS.md` is how they learn about *your* project.
 
 ```bash
-agentic profile      # what was detected, and the file that proved it
-agentic context      # plan an AGENTS.md: draft plus a brief of what is missing
+agentic profile                     # what was detected, and the file that proved it
+agentic context                     # plan an AGENTS.md: draft plus a brief of what is missing
+agentic context --answers <file>    # verify cited answers, write AGENTS.generated.md
 ```
 
 Sections are chosen from evidence, so a library gets 14 blocks and a pipeline
@@ -429,9 +432,13 @@ application gets 28. A section that does not apply is absent rather than filled
 with `Unknown`.
 
 Every fact the repository already states is pre-filled without a model
-involved. Everything else is answered by `/audit` with a citation, and the
-citation is re-read before the value is accepted. A value that cannot be
-verified becomes `Unknown`.
+involved. Everything else is answered by `/audit` with a citation, in a JSON
+file shaped `{"NAME": {"value": "...", "evidence": ["path:1-3"]}}`. Passing
+that file to `--answers` does not take the answer's word for it: the CLI
+re-reads every citation itself, and a value survives only when the file it
+names still contains it. A value that cannot be verified becomes `Unknown`,
+and the run reports every field it downgraded and why, then exits non zero so
+CI can gate on it.
 
 Your `AGENTS.md` is never overwritten. The run writes `AGENTS.generated.md` and
 shows what would change, including anything you would lose.

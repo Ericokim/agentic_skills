@@ -352,6 +352,33 @@ test('add --only installs just the requested subset of a multi-skill source', as
   assert.deepEqual(Object.keys(manifest.skills).sort(), ['alpha', 'gamma']);
 });
 
+test('add --only reports the count actually installed, not the source total', async () => {
+  const root = await project();
+  const src = await multiSkillSource(['alpha', 'beta', 'gamma']);
+
+  const { result: code, output } = await captureOutput(() =>
+    add({
+      root,
+      spec: src,
+      name: null,
+      only: 'alpha,gamma',
+      targets: ['claude-code'],
+      cacheDir: tmpdir(),
+      dryRun: false,
+      force: false,
+      cwd: root,
+    }),
+  );
+
+  assert.equal(code, 0);
+  // Two skills installed, out of three the source provides: the found count
+  // and the installed count must not be conflated.
+  assert.doesNotMatch(output, /Found 3 skills/);
+  assert.match(output, /Found 2 skills/);
+  assert.match(output, /3 available/);
+  assert.match(output, /2 skills installed, 0 failed/);
+});
+
 test('add --only with an unknown name errors and names what the source does provide', async () => {
   const root = await project();
   const src = await multiSkillSource(['alpha', 'beta', 'gamma']);

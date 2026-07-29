@@ -162,10 +162,16 @@ export async function add({
 
   // A source that provides many skills gets a count up front and a tighter
   // per-skill line, so installing nine reads as one report instead of nine
-  // repetitions of the same source string.
+  // repetitions of the same source string. The count is what is actually
+  // about to be installed, which --only or the picker may have already
+  // narrowed down from what the source provides; when the two differ, both
+  // are said, or "Found 3 skills" would read as a lie above 2 install rows.
   const multi = Boolean(found && found.length > 0);
   if (multi) {
-    line(`Found ${found.length} ${found.length === 1 ? 'skill' : 'skills'} in ${spec}`);
+    const installing = requests.length;
+    const noun = installing === 1 ? 'skill' : 'skills';
+    const total = installing === found.length ? '' : ` (${found.length} available)`;
+    line(`Found ${installing} ${noun} in ${spec}${total}`);
     line();
   }
   const nameWidth = multi ? Math.max(...requests.map((r) => (r.name ?? '').length)) : 0;

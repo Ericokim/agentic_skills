@@ -192,18 +192,20 @@ test('symlink round trip: editing the canonical file is detected as drift, and r
   const root = await project();
   const spec = await sourceSkill('build', GOOD);
 
-  const code = await add({
-    root,
-    spec,
-    name: null,
-    only: null,
-    targets: ['claude-code'],
-    cacheDir: tmpdir(),
-    dryRun: false,
-    force: false,
-    cwd: root,
-    method: 'symlink',
-  });
+  const { result: code } = await captureOutput(() =>
+    add({
+      root,
+      spec,
+      name: null,
+      only: null,
+      targets: ['claude-code'],
+      cacheDir: tmpdir(),
+      dryRun: false,
+      force: false,
+      cwd: root,
+      method: 'symlink',
+    }),
+  );
   assert.equal(code, 0);
 
   const linkPath = join(root, '.claude/skills/build');
@@ -221,7 +223,7 @@ test('symlink round trip: editing the canonical file is detected as drift, and r
   assert.equal(listCode, 1);
   assert.match(output, /edited by hand/);
 
-  const removeCode = await remove({ root, name: 'build' });
+  const { result: removeCode } = await captureOutput(() => remove({ root, name: 'build' }));
   assert.equal(removeCode, 0);
 
   await assert.rejects(() => lstat(linkPath), 'the symlink should be gone');
@@ -367,6 +369,14 @@ test('installing a multi-skill source completes and records every skill even tho
     throw error;
   };
 
+  // Deliberately NOT captureOutput here: this test needs its own mock, one
+  // that throws on every write rather than collecting it, and captureOutput
+  // would only get in the way - installed second, it would swap
+  // process.stdout.write again and silently replace the throwing mock with
+  // a plain collector, which is exactly what happened the one time this was
+  // tried (writeAttempts stayed 0 and the test's own assertion caught it).
+  // The mock below already throws before any byte reaches the real stdout,
+  // so the hazard captureOutput exists for cannot occur here regardless.
   let code;
   try {
     code = await add({
@@ -403,21 +413,23 @@ test('add never opens the picker unless the caller asks for it', async () => {
   const root = await project();
   const source = await multiSkillSource(['alpha', 'beta', 'gamma']);
 
-  const code = await add({
-    root,
-    spec: source,
-    name: null,
-    only: null,
-    all: false,
-    targets: ['claude-code'],
-    cacheDir: tmpdir(),
-    dryRun: false,
-    force: false,
-    cwd: root,
-    // interactive deliberately omitted: add() must default it to false
-    // rather than reading process.stdin/process.stdout itself, or this test
-    // would block waiting for a keypress on a real terminal.
-  });
+  const { result: code } = await captureOutput(() =>
+    add({
+      root,
+      spec: source,
+      name: null,
+      only: null,
+      all: false,
+      targets: ['claude-code'],
+      cacheDir: tmpdir(),
+      dryRun: false,
+      force: false,
+      cwd: root,
+      // interactive deliberately omitted: add() must default it to false
+      // rather than reading process.stdin/process.stdout itself, or this
+      // test would block waiting for a keypress on a real terminal.
+    }),
+  );
 
   assert.equal(code, 0);
   // Every skill installed, nothing waited for input.
@@ -428,17 +440,19 @@ test('add --only installs just the requested subset of a multi-skill source', as
   const root = await project();
   const src = await multiSkillSource(['alpha', 'beta', 'gamma']);
 
-  const code = await add({
-    root,
-    spec: src,
-    name: null,
-    only: 'alpha,gamma',
-    targets: ['claude-code'],
-    cacheDir: tmpdir(),
-    dryRun: false,
-    force: false,
-    cwd: root,
-  });
+  const { result: code } = await captureOutput(() =>
+    add({
+      root,
+      spec: src,
+      name: null,
+      only: 'alpha,gamma',
+      targets: ['claude-code'],
+      cacheDir: tmpdir(),
+      dryRun: false,
+      force: false,
+      cwd: root,
+    }),
+  );
 
   assert.equal(code, 0);
   await readFile(join(root, '.claude/skills/alpha/SKILL.md'), 'utf8');
@@ -532,18 +546,20 @@ test('add --all from a tagged git source records the git spec and ref, not the r
   const cacheDir = await mkdtemp(join(tmpdir(), 'agentic-cache-'));
   const gitSource = await taggedGitSource(['audit', 'scope']);
 
-  const code = await add({
-    root,
-    spec: `git+file://${gitSource}#v1.0.0`,
-    name: null,
-    only: null,
-    all: true,
-    targets: ['claude-code'],
-    cacheDir,
-    dryRun: false,
-    force: false,
-    cwd: root,
-  });
+  const { result: code } = await captureOutput(() =>
+    add({
+      root,
+      spec: `git+file://${gitSource}#v1.0.0`,
+      name: null,
+      only: null,
+      all: true,
+      targets: ['claude-code'],
+      cacheDir,
+      dryRun: false,
+      force: false,
+      cwd: root,
+    }),
+  );
 
   assert.equal(code, 0);
 
@@ -591,17 +607,19 @@ test('the manifest add creates records the detected targets, and -a overrides de
   await mkdir(join(detectedRoot, '.cursor'), { recursive: true });
   const spec = await sourceSkill('build', GOOD);
 
-  await add({
-    root: detectedRoot,
-    spec,
-    name: null,
-    only: null,
-    targets: [],
-    cacheDir: tmpdir(),
-    dryRun: false,
-    force: false,
-    cwd: detectedRoot,
-  });
+  await captureOutput(() =>
+    add({
+      root: detectedRoot,
+      spec,
+      name: null,
+      only: null,
+      targets: [],
+      cacheDir: tmpdir(),
+      dryRun: false,
+      force: false,
+      cwd: detectedRoot,
+    }),
+  );
 
   const detectedManifest = JSON.parse(await readFile(join(detectedRoot, 'skills.json'), 'utf8'));
   assert.deepEqual(detectedManifest.targets, ['cursor']);
@@ -610,17 +628,19 @@ test('the manifest add creates records the detected targets, and -a overrides de
   await mkdir(join(overrideRoot, '.cursor'), { recursive: true }); // would detect cursor, but -a wins
   const overrideSpec = await sourceSkill('build', GOOD);
 
-  await add({
-    root: overrideRoot,
-    spec: overrideSpec,
-    name: null,
-    only: null,
-    targets: ['codex'],
-    cacheDir: tmpdir(),
-    dryRun: false,
-    force: false,
-    cwd: overrideRoot,
-  });
+  await captureOutput(() =>
+    add({
+      root: overrideRoot,
+      spec: overrideSpec,
+      name: null,
+      only: null,
+      targets: ['codex'],
+      cacheDir: tmpdir(),
+      dryRun: false,
+      force: false,
+      cwd: overrideRoot,
+    }),
+  );
 
   const overrideManifest = JSON.parse(await readFile(join(overrideRoot, 'skills.json'), 'utf8'));
   assert.deepEqual(overrideManifest.targets, ['codex']);
@@ -683,22 +703,24 @@ test('a global-scope install writes skills under the injected home and the manif
   const home = await mkdtemp(join(tmpdir(), 'agentic-home-'));
   const spec = await sourceSkill('build', GOOD);
 
-  const code = await add({
-    root,
-    spec,
-    name: null,
-    only: null,
-    targets: ['claude-code'],
-    cacheDir: tmpdir(),
-    dryRun: false,
-    force: false,
-    cwd: root,
-    global: true,
-    home,
-    // interactive omitted: this is a non-interactive, scripted global
-    // install (what --global is for off a TTY), so the wizard must never
-    // run and never block on a keypress.
-  });
+  const { result: code } = await captureOutput(() =>
+    add({
+      root,
+      spec,
+      name: null,
+      only: null,
+      targets: ['claude-code'],
+      cacheDir: tmpdir(),
+      dryRun: false,
+      force: false,
+      cwd: root,
+      global: true,
+      home,
+      // interactive omitted: this is a non-interactive, scripted global
+      // install (what --global is for off a TTY), so the wizard must never
+      // run and never block on a keypress.
+    }),
+  );
 
   assert.equal(code, 0);
 
@@ -745,17 +767,19 @@ test('installing a multi-skill source never touches an existing AGENTS.md', asyn
   await writeFile(join(root, 'AGENTS.md'), agentsContents, 'utf8');
 
   const src = await multiSkillSource(['alpha', 'beta']);
-  await add({
-    root,
-    spec: src,
-    name: null,
-    only: null,
-    targets: ['claude-code', 'codex'],
-    cacheDir: tmpdir(),
-    dryRun: false,
-    force: false,
-    cwd: root,
-  });
+  await captureOutput(() =>
+    add({
+      root,
+      spec: src,
+      name: null,
+      only: null,
+      targets: ['claude-code', 'codex'],
+      cacheDir: tmpdir(),
+      dryRun: false,
+      force: false,
+      cwd: root,
+    }),
+  );
 
   assert.equal(await readFile(join(root, 'AGENTS.md'), 'utf8'), agentsContents);
 });

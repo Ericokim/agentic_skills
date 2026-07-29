@@ -25,10 +25,15 @@ function descriptor(fields) {
     ...fields,
     toString() {
       if (this.kind === 'file') return `file:${this.path}`;
-      const repo = this.shorthand ?? this.url;
       const subpath = this.subpath ? `/${this.subpath}` : '';
       const ref = this.ref ? `#${this.ref}` : '';
-      return `${repo}${subpath}${ref}`;
+      // A github shorthand round trips as itself. Anything else is a git
+      // remote by url, and needs the `git+` prefix put back so this string
+      // parses back to kind 'git' rather than being mistaken for a local
+      // path - `git+file://` is the case that would otherwise collide with
+      // the `file:` scheme this same toString uses for local sources above.
+      if (this.shorthand) return `${this.shorthand}${subpath}${ref}`;
+      return `git+${this.url}${subpath}${ref}`;
     },
   };
 }
@@ -55,6 +60,24 @@ function parseGithub(body, ref) {
     subpath: rest.length > 0 ? rest.join('/') : null,
     ref,
   });
+}
+
+/**
+ * Convert a git remote url into the `github:owner/repo` shorthand this file
+ * already parses, for the one caller that starts from a bare url out of
+ * package.json rather than a spec a person typed. Anything that is not a
+ * github.com url returns null, so that caller can fail cleanly instead of
+ * guessing at an owner and repo that are not there.
+ */
+export function githubShorthand(url) {
+  if (typeof url !== 'string') return null;
+  const stripped = url.replace(/^git\+/, '');
+  const match = stripped.match(
+    /^(?:https?:\/\/|git@)github\.com[:/]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/,
+  );
+  if (!match) return null;
+  const [, owner, repo] = match;
+  return `github:${owner}/${repo}`;
 }
 
 /**

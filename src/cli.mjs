@@ -10,8 +10,10 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { add } from './commands/add.mjs';
+import { context as contextCommand } from './commands/context.mjs';
 import { init } from './commands/init.mjs';
 import { list } from './commands/list.mjs';
+import { profile as profileCommand } from './commands/profile.mjs';
 import { remove } from './commands/remove.mjs';
 import { tokens } from './commands/tokens.mjs';
 import { update } from './commands/update.mjs';
@@ -21,14 +23,7 @@ import { STANDARD_VERSION } from './standard/index.mjs';
 import { TARGETS } from './targets/index.mjs';
 import { bold, dim, fail, line } from './ui.mjs';
 
-// Piping into head or less closes stdout early. That is normal use, not a
-// crash, so exit quietly instead of throwing an unhandled EPIPE.
-process.stdout.on('error', (error) => {
-  if (error.code === 'EPIPE') process.exit(0);
-  throw error;
-});
-
-const BOOLEAN_FLAGS = new Set(['dry-run', 'force', 'help', 'version']);
+const BOOLEAN_FLAGS = new Set(['dry-run', 'force', 'help', 'version', 'all', 'plan', 'global']);
 
 /** Parse `command args --flags` without a dependency. */
 export function parseArgv(argv) {
@@ -42,7 +37,7 @@ export function parseArgv(argv) {
       continue;
     }
     const name = token.replace(/^--?/, '');
-    const alias = { t: 'target', h: 'help', v: 'version', n: 'name' }[name] ?? name;
+    const alias = { t: 'target', a: 'target', h: 'help', v: 'version', n: 'name' }[name] ?? name;
 
     if (BOOLEAN_FLAGS.has(alias)) {
       flags[alias] = true;
@@ -60,23 +55,41 @@ export function parseArgv(argv) {
   return { command: positional[0] ?? null, args: positional.slice(1), flags };
 }
 
-const USAGE = `${bold('agentic')} ${dim('· agent skills that meet a checkable standard')}
+export const USAGE = `${bold('agentic')} ${dim('· agent skills that meet a checkable standard')}
 
 ${bold('USAGE')}
   agentic <command> [arguments] [options]
 
 ${bold('COMMANDS')}
   init                      create skills.json, detecting the agent tools in use
-  add [source]              install a skill, or every skill in skills.json
+  add [source]              install a skill, creating skills.json first if
+                             there is none; with no source, installs every
+                             skill already in skills.json, or this tool's own
+                             skills if that list is empty
   update [name]             re-resolve and recompile, showing what changed
   remove <name>             delete a skill and the files it owns
   list                      installed skills, drift, and anything that is wrong
   validate [path]           check skill sources against the standard
   tokens [file.jsonl]       where the tokens went in a real session
+  profile                   show what this project looks like, and the evidence
+  context                   plan an AGENTS.md, writing a draft and a brief
+  context --answers <file>  verify cited answers and write AGENTS.generated.md
 
 ${bold('OPTIONS')}
-  -t, --target <id>         override targets (repeatable, or comma separated)
+  -t, -a, --target <id>     override targets (repeatable, or comma separated)
   -n, --name <name>         name to install a source under
+      --only <names>        add: install just these skills from a multi-skill
+                             source (comma separated)
+      --all                 add: install every skill, skipping the wizard
+      --global              add: install to the home directory instead of the
+                             project, skipping the scope step of the wizard
+      --method <symlink|copy>
+                             add: how to install (symlink writes each skill
+                             once and points every agent at it; copy writes it
+                             separately per agent), skipping the method step
+                             of the wizard (default off a TTY, or with --all
+                             and no --method: copy)
+      --answers <file>      context: a JSON file of cited answers to verify
       --root <dir>          project root (default: the working directory)
       --cache <dir>         source cache (default: ~/.cache/agentic/sources)
       --top <n>             tokens: heaviest turns to show (default: 12)
@@ -85,6 +98,19 @@ ${bold('OPTIONS')}
       --force               overwrite installed files that were edited by hand
   -h, --help                show this
   -v, --version             show the versions
+
+${bold('WIZARD')}
+  Running "agentic add <source>" in a terminal without --all opens a four
+  step wizard: which skills (when the source offers more than one and
+  --only/--name have not already chosen), which agent tools to install to
+  (unless -a/--target already said), which scope to install into (unless
+  --global already forced it), and which method to install with - symlink
+  or copy (unless --method already said; symlink is first and is the
+  default). ↑↓ move, space select, enter confirm, esc or ctrl+c cancels.
+  Typing filters by name, with no reserved letters. Cancelling any step
+  installs nothing and exits clean. Piped or non-interactive runs skip the
+  whole wizard and install everything to the detected targets in project
+  scope with copy, same as --all.
 
 ${bold('SOURCES')}
   github:owner/repo#v1.0.0            a tag, branch, or commit
@@ -123,6 +149,11 @@ export async function main(argv) {
 
   const root = resolve(flags.root ?? process.cwd());
   const cacheDir = flags.cache ? resolve(flags.cache) : DEFAULT_CACHE_DIR;
+  // The process is the one place that legitimately knows whether it is
+  // attached to a terminal. Deciding it here and passing it down means every
+  // command downstream is handed a plain boolean instead of reaching into
+  // ambient process state itself.
+  const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
   const shared = {
     root,
     cacheDir,
@@ -130,6 +161,7 @@ export async function main(argv) {
     targets: flags.target,
     dryRun: Boolean(flags['dry-run']),
     force: Boolean(flags.force),
+    interactive,
   };
 
   for (const target of flags.target) {
@@ -139,11 +171,24 @@ export async function main(argv) {
     }
   }
 
+  if (flags.method && !['symlink', 'copy'].includes(flags.method)) {
+    fail(`unknown method "${flags.method}", so use symlink or copy`);
+    return 2;
+  }
+
   switch (command) {
     case 'init':
       return init(shared);
     case 'add':
-      return add({ ...shared, spec: args[0] ?? null, name: flags.name ?? null });
+      return add({
+        ...shared,
+        spec: args[0] ?? null,
+        name: flags.name ?? null,
+        only: flags.only ?? null,
+        all: Boolean(flags.all),
+        global: Boolean(flags.global),
+        method: flags.method ?? null,
+      });
     case 'update':
       return update({ ...shared, name: args[0] ?? null });
     case 'remove':
@@ -165,6 +210,10 @@ export async function main(argv) {
         project: flags.project ?? null,
         top: flags.top ?? null,
       });
+    case 'profile':
+      return profileCommand({ root });
+    case 'context':
+      return contextCommand({ root, plan: true, answers: flags.answers ? resolve(flags.answers) : null });
     default:
       fail(`unknown command "${command}"`);
       line(dim('run agentic --help for the list'));

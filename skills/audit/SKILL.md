@@ -48,22 +48,48 @@ pointer. Writes nothing else. `/sync` keeps these current afterwards.
 
 ## Execution
 
-1. Establish the stack from evidence: package manifests, lockfiles, config
-   files, CI workflows. Read them. A framework you infer from a directory name
-   is not a framework you found.
-2. Establish the commands the same way: the scripts a maintainer actually runs
-   for install, build, test, lint, and dev. Take them from the manifest or the
-   CI config, not from what is conventional for that stack.
-3. Run the test and build commands if they are cheap and safe, and record
-   whether they currently pass. A command listed in AGENTS.md that does not run
-   is worse than no command, because every later skill will try it.
-4. Read enough source to state the conventions honestly: layout, naming, error
-   handling, how state is managed. Cite the files these came from.
-5. Write AGENTS.md. Each claim carries its source. Anything you could not verify
-   is written as unknown, not omitted and not guessed.
-6. In a monorepo, give each workspace its own nested AGENTS.md with that
-   workspace's own commands. A single root file that describes five packages
-   describes none of them.
+This is a two phase flow, and the second phase is where the CLI, not this
+skill, decides whether an answer stands.
+
+1. Run `agentic context` if the command exists. It profiles the repository,
+   selects the sections this project needs, pre-fills every fact the repo
+   already states, and writes `AGENTS.draft.md` plus `AGENTS.brief.md`.
+   If the command is missing, do the same work by hand and say so in the report.
+2. Read `AGENTS.brief.md`. It lists every placeholder that still needs an
+   answer and names the section each belongs to.
+3. Answer each one from evidence, as a JSON object shaped exactly like this,
+   one entry per placeholder name:
+
+   ```json
+   {
+     "PRODUCT_SUMMARY": {
+       "value": "a content management system for course material",
+       "evidence": ["README.md:1-14"]
+     }
+   }
+   ```
+
+   A claim you cannot cite is written with `"value": "Unknown"` and no
+   evidence, never guessed. Write this object to a file, for example
+   `answers.json`.
+4. Run the project's build and test commands, and record whether they currently
+   pass. A command written down that does not run is worse than no command,
+   because every later skill will try it.
+5. Run `agentic context --answers answers.json`. The CLI does not take any
+   answer's word for it: it re-reads every citation itself, and a value
+   survives only when the file it names still contains it. Never write
+   `AGENTS.md` directly, and never hand edit `AGENTS.generated.md` to restore
+   a value the CLI rejected.
+6. Read the CLI's report in full. A field it downgraded to `Unknown` means the
+   claim could not be backed by its citation: re-answer that field with a
+   better citation, or leave it `Unknown` for a person to close. Do not report
+   this run as clean while any field was downgraded; the CLI itself exits non
+   zero in that case.
+7. The report already compares `AGENTS.generated.md` against any existing
+   `AGENTS.md`, including anything the generated version would lose. Read
+   that comparison rather than diffing the two files by hand.
+8. In a monorepo, repeat per workspace. A single root file describing five
+   packages describes none of them.
 
 ## What goes in AGENTS.md
 

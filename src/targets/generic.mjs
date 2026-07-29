@@ -4,7 +4,7 @@
 import { withAssets } from './assets.mjs';
 
 export const id = 'generic';
-export const label = 'Generic (.agents/skills)';
+export const label = 'Generic .agents/skills, read by Codex, Cline, Gemini CLI, Copilot, Zed, Warp, and others';
 export const detect = '.agents';
 export const carriesAssets = true;
 

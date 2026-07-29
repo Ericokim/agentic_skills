@@ -20,13 +20,17 @@ export async function pathExists(path) {
  *
  * ENOENT is "no such file". ENOTDIR is "a path component is a file, not a
  * directory", which is what a stray .DS_Store beside real skill folders
- * produces. Both mean the same thing to every caller here.
+ * produces. EACCES and EISDIR are also treated as absent: a profiler walks
+ * whatever a repository happens to contain, and one file it lacks permission
+ * to read, or a path that turned out to be a directory, must not abort the
+ * whole walk over a single bad permission. Every one of these means the same
+ * thing to every caller here: there was nothing usable to read.
  */
 export async function readIfPresent(path) {
   try {
     return await readFile(path, 'utf8');
   } catch (error) {
-    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null;
+    if (['ENOENT', 'ENOTDIR', 'EACCES', 'EISDIR'].includes(error.code)) return null;
     throw error;
   }
 }

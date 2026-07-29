@@ -50,3 +50,15 @@ test('rejects a value flag followed by another flag', () => {
 test('target defaults to an empty list so callers can fall back to the manifest', () => {
   assert.deepEqual(parseArgv(['list']).flags.target, []);
 });
+
+test('reads --method as a value flag', () => {
+  assert.equal(parseArgv(['add', 'x', '--method', 'symlink']).flags.method, 'symlink');
+  assert.equal(parseArgv(['add', 'x', '--method', 'copy']).flags.method, 'copy');
+});
+
+test('-a is an alias for --target', () => {
+  const short = parseArgv(['add', 'x', '-a', 'claude-code']);
+  const long = parseArgv(['add', 'x', '-t', 'claude-code']);
+  assert.deepEqual(short.flags.target, ['claude-code']);
+  assert.deepEqual(short.flags, long.flags);
+});

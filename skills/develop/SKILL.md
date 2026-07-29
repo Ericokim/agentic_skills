@@ -30,6 +30,38 @@ and it is not free: record the assumption as an `Assumed` spec in `docs/specs/`
 and flag it on the feature. The flag never blocks declaring the feature done. It
 exists so the decision is not silently lost.
 
+## Prompt first mode
+
+Off by default. A one line change should not cost an approval round trip.
+
+Turn it on for one request with a leading mode word, or for the project with
+`"promptFirst": true` in `skills.json`:
+
+- `/develop prompt <request>` runs this mode once.
+- With the project setting on, a bare `/develop` runs this mode, and
+  `/develop now <request>` skips it once.
+
+If the first word is `prompt` and it is also a plausible feature name, do not
+guess. Ask which was meant.
+
+When the mode is on, before editing any file:
+
+1. Read AGENTS.md, then the skills the user named, then the supporting skills
+   the task clearly needs.
+2. Inspect the relevant code, tests, config, types, schemas, and docs.
+3. Tag every material finding `[O]`, `[D]`, or `[A]`.
+4. Ask a focused question only where evidence cannot resolve real ambiguity.
+5. Write `prompts/NNN-slug.md` from `prompt-template.md` in this skill's folder,
+   numbering from the highest existing file plus one.
+6. Give every acceptance criterion a test or an explicit verification step.
+7. Ask: `I prepared the implementation prompt at prompts/NNN-slug.md. Is this
+   good to execute?` Then stop and wait.
+8. On approval, re-read the file and build strictly to it. On refusal, change
+   nothing.
+
+Do not weaken, delete, or skip a test to get a passing result. Do not claim
+completion because an interface appears to work.
+
 ## Before you build
 
 - The project must already exist. Scaffolding is its own task, not something to

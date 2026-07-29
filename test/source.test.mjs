@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseSource, SourceParseError } from '../src/source.mjs';
+import { githubShorthand, parseSource, SourceParseError } from '../src/source.mjs';
 
 test('parses github shorthand', () => {
   const s = parseSource('github:eric/agentic_skills');
@@ -61,4 +61,16 @@ test('rejects a github spec with no repo', () => {
 
 test('rejects an unknown scheme', () => {
   assert.throws(() => parseSource('ftp://example.com/skills'), SourceParseError);
+});
+
+test('githubShorthand converts a git+https github remote', () => {
+  assert.equal(githubShorthand('git+https://github.com/owner/repo.git'), 'github:owner/repo');
+});
+
+test('githubShorthand converts a bare https github remote', () => {
+  assert.equal(githubShorthand('https://github.com/owner/repo.git'), 'github:owner/repo');
+});
+
+test('githubShorthand returns null for a non-github url, so the caller can fail cleanly', () => {
+  assert.equal(githubShorthand('https://gitlab.com/owner/repo.git'), null);
 });

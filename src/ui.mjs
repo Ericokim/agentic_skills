@@ -3,7 +3,7 @@
 // Colour is off when stdout is not a terminal and when NO_COLOR is set, so
 // piping into a file or a CI log produces clean text.
 
-const ESC = '\x1b';
+export const ESC = '\x1b';
 const enabled = process.stdout.isTTY && !process.env.NO_COLOR;
 
 const wrap = (open, close) => (text) =>
@@ -31,16 +31,59 @@ function width(text) {
   return String(text).replace(ANSI, '').length;
 }
 
+// Piping into `head` or `less` closes stdout early. That is ordinary use, not
+// a crash, and an unwritable stdout must silence output rather than abandon
+// whatever install or write is in progress: a process that exits the moment
+// EPIPE fires can leave a manifest half written while still reporting
+// success. This flag lives here, next to every writer it guards, so "how to
+// write" and "when to stop" cannot drift apart the way they did when the
+// decision to exit lived in cli.mjs instead.
+let outputClosed = false;
+
+process.stdout.on('error', (error) => {
+  if (error.code === 'EPIPE') {
+    outputClosed = true;
+    return;
+  }
+  throw error;
+});
+
+/**
+ * Test-only: put the module back to its initial state. outputClosed is
+ * module level state shared by every test that imports ui.mjs, so without a
+ * reset, one test setting it would silence writes in every test that runs
+ * after it in the same process.
+ */
+export function __resetOutputClosedForTest() {
+  outputClosed = false;
+}
+
+/** Write raw text to stdout, unless output has already closed. */
+function write(text) {
+  if (outputClosed) return;
+  try {
+    process.stdout.write(text);
+  } catch (error) {
+    if (error.code === 'EPIPE') {
+      outputClosed = true;
+      return;
+    }
+    throw error;
+  }
+}
+
 export function line(text = '') {
-  process.stdout.write(`${text}\n`);
+  write(`${text}\n`);
 }
 
 export function fail(text) {
+  if (outputClosed) return;
   process.stderr.write(`${symbol.fail} ${text}\n`);
 }
 
 /** Left align rows into columns, padding by visible width. */
 export function table(rows) {
+  if (outputClosed) return;
   if (rows.length === 0) return;
   const columns = Math.max(...rows.map((row) => row.length));
   const widths = Array.from({ length: columns }, (_, column) =>
@@ -59,6 +102,7 @@ export function table(rows) {
 
 /** Print validation violations under a heading. */
 export function reportViolations(heading, violations) {
+  if (outputClosed) return;
   if (violations.length === 0) {
     line(`${symbol.ok} ${heading}`);
     return;

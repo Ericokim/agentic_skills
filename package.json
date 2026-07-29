@@ -1,6 +1,6 @@
 {
   "name": "agentic_skills",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A package manager for Agent Skills that compiles an engineering standard into every skill it installs, and refuses the ones that do not meet it. Ships a nine skill workflow taking a change from vague idea to shipped, verified, documented code. Zero dependencies, works with any AI coding agent.",
   "type": "module",
   "bin": {

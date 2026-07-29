@@ -27,3 +27,6 @@ jobs:
 
       - name: The standard, against this repo's own skills
         run: npm run validate
+
+      - name: Compiled skills are current
+        run: npm run build -- --check

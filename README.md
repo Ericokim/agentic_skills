@@ -82,18 +82,7 @@ Validation runs before anything is written, so a failing skill never lands half 
 npx -y skills@latest add Ericokim/agentic_skills -a claude-code
 ```
 
-It copies skills as authored. `agentic` compiles the standard into every skill instead, and refuses to install one whose declaration is incoherent. Measured on the same skill:
-
-| | npx skills | agentic |
-|---|---|---|
-| size | 3,066 B | 7,828 B |
-| leaks `standard:` frontmatter | yes | no |
-| evidence classification injected | no | yes |
-| anti-hallucination rules injected | no | yes |
-| TDD loop injected | no | yes |
-| definition of done injected | no | yes |
-
-Two different jobs: one installs skills as written, the other compiles a standard into them.
+It copies `skills/` exactly as committed, and `skills/` is compiled output: `agentic build` writes the injected standard into it before every release, so a plain copier delivers the same compiled skill `agentic add` does. What a plain copier cannot do is refuse. `agentic build` checks every skill's declaration for coherence and writes nothing to `skills/` when one fails, so an incoherent skill never reaches a directory any installer, this one or a third party's, would copy from. The check moved from install time to publish time; it did not disappear.
 
 ---
 
@@ -361,10 +350,15 @@ Your `AGENTS.md` is never overwritten: the run writes `AGENTS.generated.md` and 
 ## ✍️ Authoring a skill
 
 ```bash
-agentic validate skills/     # the same code path add runs
+agentic validate skills-src/     # the same code path add runs
+agentic build                    # compile skills-src/ into skills/, refusing on a violation
+agentic build --check            # fail if skills/ is stale, what CI runs
 ```
 
-A green `validate` means installable. Conventions, budgets, and the full rule list: [`docs/authoring.md`](docs/authoring.md).
+A green `validate` means installable. Sources live under `skills-src/`;
+`skills/` is compiled output, committed to git so any installer, this one or
+a third party's, finds it already compiled. Conventions, budgets, and the full
+rule list: [`docs/authoring.md`](docs/authoring.md).
 
 ---
 

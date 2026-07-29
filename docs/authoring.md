@@ -102,8 +102,13 @@ bundled file installs there incomplete.
 ## Before committing
 
 ```bash
-npm run check     # tests, then the standard against every skill in this repo
+npm run check     # tests, the standard against skills-src/, then build --check
 ```
+
+Author under `skills-src/<name>/`. `skills/` is compiled output, committed to
+git so any installer finds it already compiled; never edit it by hand, and run
+`npm run build` after any source change so it stays current. `build --check`
+(part of `npm run check`) fails when it does not.
 
 Reread the diff for lines that change nothing, and for a rule now stated twice.
 A prune should not change behavior; if a cut might, say so and confirm it.

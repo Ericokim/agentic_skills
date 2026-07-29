@@ -25,9 +25,10 @@
   "scripts": {
     "test": "node --test",
     "test:watch": "node --test --watch",
-    "validate": "node src/cli.mjs validate skills/",
+    "validate": "node src/cli.mjs validate skills-src/",
+    "build": "node src/cli.mjs build",
     "tokens": "node src/cli.mjs tokens",
-    "check": "npm run test && npm run validate"
+    "check": "npm run test && npm run validate && npm run build -- --check"
   },
   "author": "Eric",
   "license": "MIT",

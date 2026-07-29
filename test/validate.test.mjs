@@ -247,23 +247,43 @@ test('a compiled skill is still held to frontmatter rules', () => {
   assert.ok(ids(violations).includes('frontmatter-required'));
 });
 
-test('every skill this repo installs passes the compiled rules', async () => {
+test('every authored skill compiles to something that passes the compiled rules', async () => {
   const { readFile, readdir } = await import('node:fs/promises');
   const { join } = await import('node:path');
   const { compile } = await import('../src/compile.mjs');
   const { parseSkill } = await import('../src/skill.mjs');
 
   const repo = new URL('..', import.meta.url).pathname;
-  const entries = await readdir(join(repo, 'skills'), { withFileTypes: true });
+  const entries = await readdir(join(repo, 'skills-src'), { withFileTypes: true });
 
   for (const entry of entries.filter((e) => e.isDirectory())) {
-    const raw = await readFile(join(repo, 'skills', entry.name, 'SKILL.md'), 'utf8');
+    const raw = await readFile(join(repo, 'skills-src', entry.name, 'SKILL.md'), 'utf8');
     const out = compile(parseSkill(raw));
     assert.equal(isCompiled(out), true, `${entry.name} lost its marker`);
     assert.deepEqual(
       validateCompiled(out, { dirname: entry.name }),
       [],
       `${entry.name} compiles to something that fails its own rules`,
+    );
+  }
+});
+
+test('the compiled output committed under skills/ passes the compiled rules for all nine skills', async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+
+  const repo = new URL('..', import.meta.url).pathname;
+  const entries = await readdir(join(repo, 'skills'), { withFileTypes: true });
+  const names = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  assert.equal(names.length, 9, 'expected the nine compiled workflow skills');
+
+  for (const name of names) {
+    const raw = await readFile(join(repo, 'skills', name, 'SKILL.md'), 'utf8');
+    assert.equal(isCompiled(raw), true, `${name} under skills/ is not compiled output`);
+    assert.deepEqual(
+      validateCompiled(raw, { dirname: name }),
+      [],
+      `${name} under skills/ fails the compiled rules`,
     );
   }
 });

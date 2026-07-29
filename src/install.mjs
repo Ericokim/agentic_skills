@@ -22,7 +22,7 @@ import { parseSkill } from './skill.mjs';
 import { parseSource } from './source.mjs';
 import { STANDARD_VERSION } from './standard/index.mjs';
 import { planEmit, targetById } from './targets/index.mjs';
-import { validateAsset, validateSkill } from './validate.mjs';
+import { isCompiled, validateAsset, validateCompiled, validateSkill } from './validate.mjs';
 
 export class InstallError extends Error {
   constructor(message) {
@@ -142,7 +142,16 @@ export async function prepareInstall({ root, name, spec, targets, cacheDir, cwd 
 
   const skill = parseSkill(located.contents);
   const resolvedName = name ?? skill.frontmatter.name ?? located.dirname;
-  const violations = validateSkill(located.contents, { dirname: located.dirname });
+
+  // A source can itself already be compiled output - this project's own
+  // skills/ is exactly that, and a third party source can be too. Holding it
+  // to the source rules would report every one as missing the standard block
+  // the compiler stripped on purpose. compile() below is unaffected either
+  // way: run on compiled input it is a no op, which is what makes installing
+  // an already compiled skill idempotent end to end, not just at compile().
+  const violations = isCompiled(located.contents)
+    ? validateCompiled(located.contents, { dirname: located.dirname })
+    : validateSkill(located.contents, { dirname: located.dirname });
 
   // Bundled files ship with the skill and reach the agent the same way, so a
   // bad one blocks the install rather than arriving unchecked.

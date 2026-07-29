@@ -32,6 +32,19 @@ including planning and writes nothing. `commitInstall` writes. That split is why
 a skill failing validation costs nothing, and why `--dry-run` is the same code
 path minus the final call rather than a parallel implementation of it.
 
+## Publishing
+
+`skills-src/` is what a person authors: the `standard:` block, and any bundled
+files, live there. `skills/` is compiled output, committed to git rather than
+gitignored, because it is the directory any installer actually reads,
+including a third party one that only copies and never compiles. `agentic
+build` (`commands/build.mjs`) runs `validate.mjs` over every source,
+refusing the whole build on any failure, then `compile.mjs` per skill, and
+writes the result to `skills/`. `agentic build --check` runs the same
+validate and compile in memory and diffs the result against what is
+committed instead of writing, which is what CI runs: a source edited without
+a rebuild fails the build rather than shipping a stale `skills/`.
+
 ## Module map
 
 | Module | Owns |
@@ -48,6 +61,7 @@ path minus the final call rather than a parallel implementation of it.
 | `targets/*.mjs` | Path and dialect per agent tool. No logic. |
 | `manifest.mjs` `lock.mjs` | `skills.json` and `skills.lock` |
 | `install.mjs` | The pipeline, assembled, plus drift detection |
+| `commands/build.mjs` | The publish time compile step: `skills-src/` to committed `skills/` |
 | `commands/tokens.mjs` | Session transcript accounting, the only module not part of the install pipeline |
 | `ui.mjs` | Terminal output |
 | `context/snapshot.mjs` | One bounded read of a repository |
@@ -66,8 +80,9 @@ path minus the final call rather than a parallel implementation of it.
 2. Add it to `FAMILIES` in `src/standard/index.mjs`.
 3. Add any invariant it participates in to `checkInvariants`.
 4. Bump `STANDARD_VERSION`.
-5. Declare the new family in every skill under `skills/`, since declaration is
-   required and has no default. `npm run validate` lists what is missing.
+5. Declare the new family in every skill under `skills-src/`, since declaration
+   is required and has no default. `npm run validate` lists what is missing.
+   Then `npm run build` to bring the compiled `skills/` back in sync.
 
 The generic tests in `test/standard.test.mjs` iterate `FAMILIES`, so a new
 family is automatically checked for a valid `off` level, a non empty block per

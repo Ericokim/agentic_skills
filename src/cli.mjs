@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { add } from './commands/add.mjs';
+import { build as buildCommand } from './commands/build.mjs';
 import { context as contextCommand } from './commands/context.mjs';
 import { init } from './commands/init.mjs';
 import { list } from './commands/list.mjs';
@@ -23,7 +24,7 @@ import { STANDARD_VERSION } from './standard/index.mjs';
 import { TARGETS } from './targets/index.mjs';
 import { bold, dim, fail, line } from './ui.mjs';
 
-const BOOLEAN_FLAGS = new Set(['dry-run', 'force', 'help', 'version', 'all', 'plan', 'global']);
+const BOOLEAN_FLAGS = new Set(['dry-run', 'force', 'help', 'version', 'all', 'plan', 'global', 'check']);
 
 /** Parse `command args --flags` without a dependency. */
 export function parseArgv(argv) {
@@ -70,6 +71,10 @@ ${bold('COMMANDS')}
   remove <name>             delete a skill and the files it owns
   list                      installed skills, drift, and anything that is wrong
   validate [path]           check skill sources against the standard
+  build                     compile skills-src/ into skills/, refusing to
+                             write anything if a source fails the standard
+  build --check             compare compiled output against skills/ without
+                             writing, exiting non zero when it is stale
   tokens [file.jsonl]       where the tokens went in a real session
   profile                   show what this project looks like, and the evidence
   context                   plan an AGENTS.md, writing a draft and a brief
@@ -202,7 +207,9 @@ export async function main(argv) {
     case 'ls':
       return list(shared);
     case 'validate':
-      return validateCommand({ root, target: resolve(args[0] ?? 'skills') });
+      return validateCommand({ root, target: resolve(args[0] ?? 'skills-src') });
+    case 'build':
+      return buildCommand({ root, check: Boolean(flags.check) });
     case 'tokens':
       return tokens({
         root,

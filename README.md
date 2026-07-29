@@ -27,13 +27,21 @@
 ```bash
 cd your-project
 
-npx github:Ericokim/agentic_skills init          # detect the agent tools in use
-npx github:Ericokim/agentic_skills add github:Ericokim/agentic_skills/skills/audit
+npx -y github:Ericokim/agentic_skills#v0.1.0 init
+npx -y github:Ericokim/agentic_skills#v0.1.0 add github:Ericokim/agentic_skills/skills/audit#v0.1.0
 ```
 
 Then run `/audit` in your agent.
 
 **Run it from GitHub, not npm.** `agentic` and `agentic-skills` are taken on npm by unrelated packages, so `npx agentic` would run somebody else's code. Installed globally or as a dev dependency the command is just `agentic`, which is how it is written from here on.
+
+**Pin the tag.** `#v0.1.0` fixes both the tool and the skills to one release. Drop it and every run fetches whatever is on `main` that day, so two people on the same team can get different tools and different skills. `-y` skips npx's install prompt, which otherwise blocks any script or CI job.
+
+| | Use |
+|---|---|
+| Trying it out | `npx -y github:Ericokim/agentic_skills init` |
+| Team or CI | `npx -y github:Ericokim/agentic_skills#v0.1.0 init` |
+| Daily driver | `npm i -D github:Ericokim/agentic_skills#v0.1.0`, then `agentic` |
 
 ---
 

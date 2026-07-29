@@ -292,6 +292,31 @@ test('add installs every skill from a multi-skill source when no name is given',
   assert.deepEqual(Object.keys(manifest.skills).sort(), ['alpha', 'beta', 'gamma']);
 });
 
+test('add never opens the picker unless the caller asks for it', async () => {
+  const root = await project();
+  const source = await multiSkillSource(['alpha', 'beta', 'gamma']);
+
+  const code = await add({
+    root,
+    spec: source,
+    name: null,
+    only: null,
+    all: false,
+    targets: ['claude-code'],
+    cacheDir: tmpdir(),
+    dryRun: false,
+    force: false,
+    cwd: root,
+    // interactive deliberately omitted: add() must default it to false
+    // rather than reading process.stdin/process.stdout itself, or this test
+    // would block waiting for a keypress on a real terminal.
+  });
+
+  assert.equal(code, 0);
+  // Every skill installed, nothing waited for input.
+  assert.equal((await readdir(join(root, '.claude/skills'))).length, 3);
+});
+
 test('add --only installs just the requested subset of a multi-skill source', async () => {
   const root = await project();
   const src = await multiSkillSource(['alpha', 'beta', 'gamma']);

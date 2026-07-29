@@ -83,7 +83,19 @@ async function skillDescriptions(found) {
  * reported and skipped with a non zero exit, so a CI run that installs skills
  * fails loudly rather than shipping a skill that lies.
  */
-export async function add({ root, spec, name, only, targets, cacheDir, dryRun, force, cwd, all = false }) {
+export async function add({
+  root,
+  spec,
+  name,
+  only,
+  targets,
+  cacheDir,
+  dryRun,
+  force,
+  cwd,
+  all = false,
+  interactive = false,
+}) {
   const manifest = await readManifest(root);
   if (!manifest) {
     line(`${symbol.fail} no ${MANIFEST_FILE} here, so run ${bold('agentic init')} first.`);
@@ -107,15 +119,13 @@ export async function add({ root, spec, name, only, targets, cacheDir, dryRun, f
   // already said what it wants via --only, --name, or --all. Cancelling out
   // of the picker installs nothing and still exits clean: a person browsing
   // and changing their mind is not an error.
-  if (
-    found &&
-    found.length > 1 &&
-    !only &&
-    !name &&
-    !all &&
-    process.stdin.isTTY &&
-    process.stdout.isTTY
-  ) {
+  //
+  // Whether stdin and stdout are actually a terminal is decided once by the
+  // CLI entry point, the one place that legitimately reads ambient process
+  // state, and handed down as `interactive`. add() never reads
+  // process.stdin/process.stdout itself, and a caller that omits
+  // `interactive` gets the safe, non-blocking default of false.
+  if (found && found.length > 1 && !only && !name && !all && interactive) {
     const items = await skillDescriptions(found);
     const chosen = await pickSkills(items);
     if (chosen === null || chosen.length === 0) {

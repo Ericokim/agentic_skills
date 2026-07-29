@@ -134,6 +134,11 @@ export async function main(argv) {
 
   const root = resolve(flags.root ?? process.cwd());
   const cacheDir = flags.cache ? resolve(flags.cache) : DEFAULT_CACHE_DIR;
+  // The process is the one place that legitimately knows whether it is
+  // attached to a terminal. Deciding it here and passing it down means every
+  // command downstream is handed a plain boolean instead of reaching into
+  // ambient process state itself.
+  const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
   const shared = {
     root,
     cacheDir,
@@ -141,6 +146,7 @@ export async function main(argv) {
     targets: flags.target,
     dryRun: Boolean(flags['dry-run']),
     force: Boolean(flags.force),
+    interactive,
   };
 
   for (const target of flags.target) {

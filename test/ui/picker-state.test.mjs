@@ -106,7 +106,11 @@ test('cursor clamps into the filtered list when the filter shrinks it', () => {
   state = reduce(state, KEY.down); // cursor at 2, "check"
   assert.equal(state.cursor, 2);
   state = reduce(state, KEY.char('i')); // only "architect" and "audit" contain "i"
-  assert.ok(state.cursor <= 1);
+  // The filtered list has 2 items (indices 0-1); a cursor of 2 must clamp
+  // down to the new last index, 1 - not just "some" in-bounds value, and
+  // not a full reset to 0, which a broken clamp that always zeroed the
+  // cursor would also satisfy.
+  assert.equal(state.cursor, 1);
   assert.deepEqual(
     visible(state).map((item) => item.name),
     ['architect', 'audit'],

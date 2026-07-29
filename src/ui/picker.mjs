@@ -99,6 +99,9 @@ export function pickSkills(items, { input = process.stdin, output = process.stdo
       restored = true;
       try {
         input.removeListener('keypress', onKeypress);
+        input.removeListener('close', onEnd);
+        input.removeListener('end', onEnd);
+        input.removeListener('error', onError);
       } catch {
         // ignore
       }
@@ -165,6 +168,20 @@ export function pickSkills(items, { input = process.stdin, output = process.stdo
       }
     }
 
+    // stdin can close or error out from under the picker - the other end of
+    // a pipe going away, a terminal getting killed, whatever. Nothing else
+    // in this file would ever call restore() for that: there is no keypress
+    // coming, so onKeypress never fires and the promise would otherwise hang
+    // forever with raw mode still on and the cursor still hidden. Treat it
+    // exactly like escape - a cancellation, not an error.
+    function onEnd() {
+      finish(null);
+    }
+
+    function onError() {
+      finish(null);
+    }
+
     try {
       readline.emitKeypressEvents(input);
       input.setRawMode(true);
@@ -172,6 +189,9 @@ export function pickSkills(items, { input = process.stdin, output = process.stdo
       output.write(HIDE_CURSOR);
       render();
       input.on('keypress', onKeypress);
+      input.on('close', onEnd);
+      input.on('end', onEnd);
+      input.on('error', onError);
     } catch (error) {
       restore();
       rejectPromise(error);

@@ -7,12 +7,31 @@
 //
 // Pure: a target plans files, it does not write them. The caller owns the disk.
 
+import * as aiderDesk from './aider-desk.mjs';
+import * as astrbot from './astrbot.mjs';
+import * as augment from './augment.mjs';
+import * as autohand from './autohand.mjs';
+import * as bob from './bob.mjs';
 import * as claudeCode from './claude-code.mjs';
+import * as codearts from './codearts.mjs';
 import * as codex from './codex.mjs';
 import * as cursor from './cursor.mjs';
 import * as generic from './generic.mjs';
+import * as openclaw from './openclaw.mjs';
 
-export const TARGETS = [claudeCode, codex, generic, cursor];
+export const TARGETS = [
+  claudeCode,
+  codex,
+  generic,
+  cursor,
+  aiderDesk,
+  augment,
+  autohand,
+  bob,
+  codearts,
+  openclaw,
+  astrbot,
+];
 
 export const DEFAULT_TARGET = claudeCode.id;
 

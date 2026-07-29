@@ -42,6 +42,25 @@ npx -y github:Ericokim/agentic_skills#v0.2.0 add -a claude-code
 npx -y github:Ericokim/agentic_skills#v0.2.0 add
 ```
 
+**Or install with the third party `skills` package.** This repo's skill layout already works with it unmodified:
+
+```bash
+npx -y skills@latest add Ericokim/agentic_skills -a claude-code
+```
+
+It gives a familiar installer with many agent clients, and copies the skills as authored. `agentic` compiles the standard into every skill instead, and refuses to install one whose declaration is incoherent. Measured on the same skill:
+
+| | npx skills | agentic |
+|---|---|---|
+| size | 3,066 B | 7,828 B |
+| leaks `standard:` frontmatter | yes | no |
+| evidence classification injected | no | yes |
+| anti-hallucination rules injected | no | yes |
+| TDD loop injected | no | yes |
+| definition of done injected | no | yes |
+
+Two different jobs: one installs skills as written, the other compiles a standard into them.
+
 **Run it from GitHub, not npm.** `agentic` and `agentic-skills` are already taken on npm by unrelated packages. Add it as a dependency instead (`npm i -D github:Ericokim/agentic_skills#v0.2.0`) and the bare `agentic` command works, which is how the rest of this README writes it.
 
 **Pin the tag.** `#v0.2.0` fixes both the tool and the skills to one release, so a whole team gets the same thing instead of whatever `main` happens to be that day. `-y` skips npx's install prompt, which otherwise blocks any script or CI job.

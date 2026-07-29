@@ -55,7 +55,7 @@ export function parseArgv(argv) {
   return { command: positional[0] ?? null, args: positional.slice(1), flags };
 }
 
-const USAGE = `${bold('agentic')} ${dim('· agent skills that meet a checkable standard')}
+export const USAGE = `${bold('agentic')} ${dim('· agent skills that meet a checkable standard')}
 
 ${bold('USAGE')}
   agentic <command> [arguments] [options]

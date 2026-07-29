@@ -22,9 +22,10 @@ const GENERIC_TARGET_ID = 'generic';
 // The open .agents/skills layout every Agent Skills client can read without
 // its own adapter - what step 2 of the wizard calls "Universal". Kept as
 // prose here, not derived from the targets list, because it names clients
-// this package has no adapter for at all (Gemini CLI reads the open layout
-// directly and needs nothing from this project to do it).
-const UNIVERSAL_READERS = ['Codex', 'Gemini CLI', 'any Agent Skills client'];
+// this package has no adapter for at all (Cline, Gemini CLI, Copilot, Zed,
+// and Warp all read the open layout directly and need nothing from this
+// project to do it).
+const UNIVERSAL_READERS = ['Codex', 'Cline', 'Gemini CLI', 'Copilot', 'Zed', 'Warp'];
 const UNIVERSAL_PATH = '.agents/skills';
 
 // Step 2 shows every target except the universal one, under a short label

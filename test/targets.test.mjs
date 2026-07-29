@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { TARGETS, detectionHints, planEmit, targetById } from '../src/targets/index.mjs';
 import { parseSkill } from '../src/skill.mjs';
 import { compile } from '../src/compile.mjs';
+import { USAGE } from '../src/cli.mjs';
 
 const SOURCE = `---
 name: build
@@ -25,8 +26,43 @@ Builds the thing.
 const skill = parseSkill(SOURCE);
 const compiled = compile(skill);
 
-test('ships the four targets', () => {
-  assert.deepEqual(TARGETS.map((t) => t.id).sort(), ['claude-code', 'codex', 'cursor', 'generic']);
+test('ships the eleven targets', () => {
+  assert.deepEqual(
+    TARGETS.map((t) => t.id).sort(),
+    [
+      'aider-desk',
+      'astrbot',
+      'augment',
+      'autohand',
+      'bob',
+      'claude-code',
+      'codearts',
+      'codex',
+      'cursor',
+      'generic',
+      'openclaw',
+    ],
+  );
+});
+
+test('every target id is unique', () => {
+  const ids = TARGETS.map((t) => t.id);
+  assert.deepEqual(ids, [...new Set(ids)], `duplicate target ids: ${ids.join(', ')}`);
+});
+
+test('every target id appears in the --help TARGETS list', () => {
+  for (const target of TARGETS) {
+    assert.ok(USAGE.includes(target.id), `--help is missing target "${target.id}"`);
+  }
+});
+
+test('openclaw and astrbot are opt in only, not auto detected', () => {
+  // Both write to a plain, non dot directory (skills/ and data/skills/) that
+  // an unrelated project could already have for its own reasons (this repo
+  // has a skills/ folder). Auto detecting either would silently claim that
+  // folder, so both must stay opt in via -a.
+  assert.equal(targetById('openclaw').detect, null);
+  assert.equal(targetById('astrbot').detect, null);
 });
 
 test('targetById finds a target and returns undefined otherwise', () => {
@@ -122,19 +158,17 @@ test('claude-code installs bundled files beside the skill', () => {
   assert.ok(paths.includes('/repo/.claude/skills/check/templates/pr.md'));
 });
 
-test('generic and codex install bundled files too', () => {
-  for (const id of ['generic', 'codex']) {
-    const paths = planEmit(id, {
+test('every target with carriesAssets actually emits the bundled files', () => {
+  for (const target of TARGETS.filter((t) => t.carriesAssets)) {
+    const paths = planEmit(target.id, {
       root: '/repo',
       name: 'check',
       compiled,
       skill,
       assets: ASSETS,
     }).map((f) => f.path);
-    assert.ok(
-      paths.includes('/repo/.agents/skills/check/modes/verify.md'),
-      `${id} dropped a bundled file`,
-    );
+    assert.ok(paths.some((p) => p.endsWith('modes/verify.md')), `${target.id} dropped modes/verify.md`);
+    assert.ok(paths.some((p) => p.endsWith('templates/pr.md')), `${target.id} dropped templates/pr.md`);
   }
 });
 
@@ -162,9 +196,10 @@ test('cursor cannot carry bundled files, and reports them as dropped', () => {
   assert.equal(targetById('cursor').carriesAssets, false);
 });
 
-test('targets that carry assets say so', () => {
-  for (const id of ['claude-code', 'generic', 'codex']) {
-    assert.equal(targetById(id).carriesAssets, true, `${id} should carry assets`);
+test('every target carries assets except cursor', () => {
+  for (const target of TARGETS) {
+    const expected = target.id !== 'cursor';
+    assert.equal(target.carriesAssets, expected, `${target.id} carriesAssets mismatch`);
   }
 });
 

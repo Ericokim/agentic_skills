@@ -245,6 +245,7 @@ The gate is layered, not magic. `/architect` names the source of every value a f
 
 ```bash
 /develop the transcript search page
+/develop prompt add rate limiting to the login route   # write a prompt, wait for approval
 ```
 
 > **Use case.** You ask for a checkout flow but never decided which payment provider. `/develop` stops at the spec gate and routes you to `/architect` instead of quietly picking Stripe. You can override, and the assumption gets recorded as an `Assumed` spec rather than lost.
@@ -308,6 +309,8 @@ The gate is layered, not magic. `/architect` names the source of every value a f
 | 📋 | `agentic list` | Installed skills, drift, and anything that is wrong | 👁️ |
 | ✅ | `agentic validate [path]` | Check skill sources against the standard | 👁️ |
 | 💰 | `agentic tokens [file]` | Where the tokens went in a real session | 👁️ |
+| 🔎 | `agentic profile` | Show what this project looks like, and the evidence | 👁️ |
+| 📄 | `agentic context` | Plan an AGENTS.md, writing a draft and a brief | ✍️ |
 
 <sub>✍️ writes files · 👁️ read only</sub>
 
@@ -409,6 +412,29 @@ agentic validate .claude/skills
   9 of these are installed skills, checked against the rules that still apply once compiled
   to check declarations and invariants, validate the source they came from
 ```
+
+---
+
+## 📄 Generating project context
+
+Skills know how to work. `AGENTS.md` is how they learn about *your* project.
+
+```bash
+agentic profile      # what was detected, and the file that proved it
+agentic context      # plan an AGENTS.md: draft plus a brief of what is missing
+```
+
+Sections are chosen from evidence, so a library gets 14 blocks and a pipeline
+application gets 28. A section that does not apply is absent rather than filled
+with `Unknown`.
+
+Every fact the repository already states is pre-filled without a model
+involved. Everything else is answered by `/audit` with a citation, and the
+citation is re-read before the value is accepted. A value that cannot be
+verified becomes `Unknown`.
+
+Your `AGENTS.md` is never overwritten. The run writes `AGENTS.generated.md` and
+shows what would change, including anything you would lose.
 
 ---
 

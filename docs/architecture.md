@@ -50,6 +50,14 @@ path minus the final call rather than a parallel implementation of it.
 | `install.mjs` | The pipeline, assembled, plus drift detection |
 | `commands/tokens.mjs` | Session transcript accounting, the only module not part of the install pipeline |
 | `ui.mjs` | Terminal output |
+| `context/snapshot.mjs` | One bounded read of a repository |
+| `context/profile.mjs` | Snapshot to signals, each with its evidence |
+| `context/sections/*.mjs` | One file per section: its text and its predicate |
+| `context/registry.mjs` | The section list, and selection against a profile |
+| `context/prefill.mjs` | Every value the repository already states |
+| `context/assemble.mjs` | Selected sections to one flat draft |
+| `context/verify.mjs` | Re-read what the model claimed to have read |
+| `context/compare.mjs` | What would change, at heading level |
 
 ## Adding a rule family
 

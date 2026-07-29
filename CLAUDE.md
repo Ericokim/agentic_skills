@@ -58,6 +58,10 @@ last call.
   problem this project exists to remove.
 - **Bump `STANDARD_VERSION`** in `src/standard/index.mjs` when injected prose or
   invariants change, then update every skill's declaration.
+- **A context section owns its text and its predicate in one file** under
+  `src/context/sections/`, the same rule that applies to a standard family.
+- **Generation never writes `AGENTS.md`.** It writes `AGENTS.generated.md` and
+  a comparison.
 
 ## Authoring skills
 

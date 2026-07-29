@@ -63,6 +63,24 @@ function parseGithub(body, ref) {
 }
 
 /**
+ * Convert a git remote url into the `github:owner/repo` shorthand this file
+ * already parses, for the one caller that starts from a bare url out of
+ * package.json rather than a spec a person typed. Anything that is not a
+ * github.com url returns null, so that caller can fail cleanly instead of
+ * guessing at an owner and repo that are not there.
+ */
+export function githubShorthand(url) {
+  if (typeof url !== 'string') return null;
+  const stripped = url.replace(/^git\+/, '');
+  const match = stripped.match(
+    /^(?:https?:\/\/|git@)github\.com[:/]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/,
+  );
+  if (!match) return null;
+  const [, owner, repo] = match;
+  return `github:${owner}/${repo}`;
+}
+
+/**
  * @param {string} spec
  * @returns {{kind: 'git'|'file', url: string|null, path: string|null, ref: string|null, subpath: string|null}}
  */

@@ -13,7 +13,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { add } from '../src/commands/add.mjs';
+import { add, defaultSourceFromPackage, resolveDefaultSource } from '../src/commands/add.mjs';
+import { init } from '../src/commands/init.mjs';
 import { commitInstall, detectDrift, discoverSkills, locateSkill, prepareInstall } from '../src/install.mjs';
 import { readLock, writeLock } from '../src/lock.mjs';
 import { defaultManifest, writeManifest } from '../src/manifest.mjs';
@@ -461,6 +462,147 @@ test('add --all from a tagged git source records the git spec and ref, not the r
   const lock = JSON.parse(await readFile(join(root, 'skills.lock'), 'utf8'));
   assert.ok(lock.audit.sha, 'audit should have a resolved commit sha');
   assert.ok(lock.scope.sha, 'scope should have a resolved commit sha');
+});
+
+test('add creates skills.json when there is none, rather than erroring', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'agentic-e2e-'));
+  const spec = await sourceSkill('build', GOOD);
+
+  const { result: code, output } = await captureOutput(() =>
+    add({
+      root,
+      spec,
+      name: null,
+      only: null,
+      targets: [],
+      cacheDir: tmpdir(),
+      dryRun: false,
+      force: false,
+      cwd: root,
+    }),
+  );
+
+  assert.equal(code, 0);
+  assert.match(output, /wrote skills\.json/);
+  await readFile(join(root, '.claude/skills/build/SKILL.md'), 'utf8');
+
+  const manifest = JSON.parse(await readFile(join(root, 'skills.json'), 'utf8'));
+  assert.deepEqual(Object.keys(manifest.skills), ['build']);
+});
+
+test('the manifest add creates records the detected targets, and -a overrides detection', async () => {
+  const detectedRoot = await mkdtemp(join(tmpdir(), 'agentic-e2e-'));
+  await mkdir(join(detectedRoot, '.cursor'), { recursive: true });
+  const spec = await sourceSkill('build', GOOD);
+
+  await add({
+    root: detectedRoot,
+    spec,
+    name: null,
+    only: null,
+    targets: [],
+    cacheDir: tmpdir(),
+    dryRun: false,
+    force: false,
+    cwd: detectedRoot,
+  });
+
+  const detectedManifest = JSON.parse(await readFile(join(detectedRoot, 'skills.json'), 'utf8'));
+  assert.deepEqual(detectedManifest.targets, ['cursor']);
+
+  const overrideRoot = await mkdtemp(join(tmpdir(), 'agentic-e2e-'));
+  await mkdir(join(overrideRoot, '.cursor'), { recursive: true }); // would detect cursor, but -a wins
+  const overrideSpec = await sourceSkill('build', GOOD);
+
+  await add({
+    root: overrideRoot,
+    spec: overrideSpec,
+    name: null,
+    only: null,
+    targets: ['codex'],
+    cacheDir: tmpdir(),
+    dryRun: false,
+    force: false,
+    cwd: overrideRoot,
+  });
+
+  const overrideManifest = JSON.parse(await readFile(join(overrideRoot, 'skills.json'), 'utf8'));
+  assert.deepEqual(overrideManifest.targets, ['codex']);
+  await readFile(join(overrideRoot, '.agents/skills/build/SKILL.md'), 'utf8');
+});
+
+test('defaultSourceFromPackage pins a github repository.url to the given version', () => {
+  assert.equal(
+    defaultSourceFromPackage({
+      repository: { url: 'git+https://github.com/Ericokim/agentic_skills.git' },
+      version: '0.2.0',
+    }),
+    'github:Ericokim/agentic_skills#v0.2.0',
+  );
+});
+
+test('defaultSourceFromPackage returns null rather than guessing when there is no usable repository', () => {
+  assert.equal(defaultSourceFromPackage({ version: '0.2.0' }), null);
+  assert.equal(
+    defaultSourceFromPackage({ repository: { url: 'https://gitlab.com/eric/x.git' }, version: '0.2.0' }),
+    null,
+  );
+});
+
+test('add with no source and an empty manifest resolves the default source from this package.json, pinned to the running version', async () => {
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  const expected = `github:Ericokim/agentic_skills#v${pkg.version}`;
+
+  assert.equal(await resolveDefaultSource(), expected);
+});
+
+test('add with no source and a non-empty manifest installs those entries, not the default', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'agentic-e2e-'));
+  const spec = await sourceSkill('build', GOOD);
+  const manifest = defaultManifest({ targets: ['claude-code'] });
+  manifest.skills = { build: spec };
+  await writeManifest(root, manifest);
+
+  const { result: code, output } = await captureOutput(() =>
+    add({
+      root,
+      spec: null,
+      name: null,
+      only: null,
+      targets: [],
+      cacheDir: tmpdir(),
+      dryRun: false,
+      force: false,
+      cwd: root,
+    }),
+  );
+
+  assert.equal(code, 0);
+  assert.doesNotMatch(output, /installing this tool's own skills/);
+  await readFile(join(root, '.claude/skills/build/SKILL.md'), 'utf8');
+});
+
+test('init still creates skills.json, detecting targets, exactly as before', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'agentic-e2e-'));
+
+  const { result: code, output } = await captureOutput(() => init({ root, targets: [] }));
+
+  assert.equal(code, 0);
+  assert.match(output, /wrote skills\.json/);
+  assert.match(output, /targets: claude-code/);
+  assert.match(output, /next: agentic add/);
+
+  const manifest = JSON.parse(await readFile(join(root, 'skills.json'), 'utf8'));
+  assert.deepEqual(manifest, defaultManifest({ targets: ['claude-code'] }));
+});
+
+test('init still refuses to overwrite an existing manifest', async () => {
+  const root = await project();
+
+  const { result: code, output } = await captureOutput(() => init({ root, targets: [] }));
+
+  assert.equal(code, 0);
+  assert.match(output, /already exists/);
 });
 
 test('installing a multi-skill source never touches an existing AGENTS.md', async () => {

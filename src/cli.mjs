@@ -69,7 +69,10 @@ ${bold('USAGE')}
 
 ${bold('COMMANDS')}
   init                      create skills.json, detecting the agent tools in use
-  add [source]              install a skill, or every skill in skills.json
+  add [source]              install a skill, creating skills.json first if
+                             there is none; with no source, installs every
+                             skill already in skills.json, or this tool's own
+                             skills if that list is empty
   update [name]             re-resolve and recompile, showing what changed
   remove <name>             delete a skill and the files it owns
   list                      installed skills, drift, and anything that is wrong

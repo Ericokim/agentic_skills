@@ -35,30 +35,46 @@ Run this in a **real project**, not an empty folder. These skills read your code
 ```bash
 cd your-project
 
-npx -y github:Ericokim/agentic_skills#v0.2.0 init
-npx -y github:Ericokim/agentic_skills#v0.2.0 add github:Ericokim/agentic_skills#v0.2.0
+# Claude Code (installs into .claude/skills, then restart Claude Code)
+npx -y github:Ericokim/agentic_skills#v0.2.0 add -a claude-code
+
+# Generic .agents/skills, read by Codex and other agents
+npx -y github:Ericokim/agentic_skills#v0.2.0 add
 ```
 
-The second command finds every skill in the source and opens a picker to choose from. Add `--all` to take them all without being asked, which is also what happens automatically when there is no terminal to prompt on.
+One command: it writes `skills.json` if there is not one yet, then installs. With no source given, it installs its own nine skills. `add` finds every skill in a multi-skill source and opens a picker to choose from; add `--all` to take them all without being asked, which is also what happens automatically when there is no terminal to prompt on.
 
 ```text
 ✓ wrote skills.json
-  targets: claude-code (detected)
-✓ audit github:Ericokim/agentic_skills/skills/audit#v0.2.0 · 1 file
+  targets: claude-code (from --target)
+no source given, installing this tool's own skills from github:Ericokim/agentic_skills#v0.2.0
+Found 9 skills in github:Ericokim/agentic_skills#v0.2.0
+
+✓ architect  2 files
+✓ audit      1 file
+✓ check      3 files
+✓ debug      1 file
+✓ develop    2 files
+✓ document   5 files
+✓ scope      2 files
+✓ sync       1 file
+✓ test       1 file
+
+✓ 9 skills installed, 0 failed
 ```
 
 Then run `/audit` in your agent. It reads your manifests and CI config, **runs your build and test commands rather than assuming they work**, and writes `AGENTS.md` with what is actually true. Anything it could not verify is recorded as unknown rather than guessed.
 
-`init` detects your agent tools from `.claude/`, `.agents/`, and `.cursor/`. Override with `-t claude-code,codex` if it guesses wrong.
+`add` writes `skills.json` on its first run, detecting your agent tools from `.claude/`, `.agents/`, and `.cursor/`. Override with `-a claude-code,codex` if it guesses wrong.
 
-**Run it from GitHub, not npm.** `agentic` and `agentic-skills` are taken on npm by unrelated packages, so `npx agentic` would run somebody else's code. Installed globally or as a dev dependency the command is just `agentic`, which is how it is written from here on.
+**Run it from GitHub, not npm.** `agentic` and `agentic-skills` are taken on npm by unrelated packages. Installed globally or as a dev dependency the command is just `agentic`, which is how it is written from here on.
 
-**Pin the tag.** `#v0.2.0` fixes both the tool and the skills to one release. Drop it and every run fetches whatever is on `main` that day, so two people on the same team can get different tools and different skills. `-y` skips npx's install prompt, which otherwise blocks any script or CI job.
+**Pin the tag.** `#v0.2.0` fixes both the tool and the skills to one release, so a whole team gets the same thing instead of whatever `main` happens to be that day. `-y` skips npx's install prompt, which otherwise blocks any script or CI job.
 
 | | Use |
 |---|---|
-| Trying it out | `npx -y github:Ericokim/agentic_skills init` |
-| Team or CI | `npx -y github:Ericokim/agentic_skills#v0.2.0 init` |
+| Trying it out | `npx -y github:Ericokim/agentic_skills add` |
+| Team or CI | `npx -y github:Ericokim/agentic_skills#v0.2.0 add` |
 | Daily driver | `npm i -D github:Ericokim/agentic_skills#v0.2.0`, then `agentic` |
 
 ---
@@ -304,8 +320,8 @@ The gate is layered, not magic. `/architect` names the source of every value a f
 
 | | Command | Does | Writes |
 |:--:|---|---|:--:|
-| 🆕 | `agentic init` | Create `skills.json`, detecting the agent tools in use | ✍️ |
-| ⬇️ | `agentic add [source]` | Install a skill, or every skill in `skills.json` | ✍️ |
+| 🆕 | `agentic init` | Create `skills.json` up front, detecting the agent tools in use, without installing anything | ✍️ |
+| ⬇️ | `agentic add [source]` | Install a skill, creating `skills.json` first if there is none; with no source, install every skill in `skills.json`, or this tool's own skills if that list is empty | ✍️ |
 | 🔄 | `agentic update [name]` | Re-resolve and recompile, showing what changed | ✍️ |
 | 🗑️ | `agentic remove <name>` | Delete a skill and the files it owns | ✍️ |
 | 📋 | `agentic list` | Installed skills, drift, and anything that is wrong | 👁️ |
@@ -567,7 +583,6 @@ A green `validate` means installable. Conventions, budgets, and the full rule li
 
 | What you see | What it means | Do this |
 |---|---|---|
-| `no skills.json here` | `init` has not run in this directory | `cd` to the project, run `init` |
 | `has local edits, so it was left alone` | You edited an installed skill by hand | Keep it, or overwrite with `--force` |
 | `does not meet the standard` | The skill's rules contradict each other | Fix the source; the message names the rule |
 | `could not find a skill named X` | Wrong name or wrong repo | The message lists what the source does provide |

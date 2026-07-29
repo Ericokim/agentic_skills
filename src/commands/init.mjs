@@ -14,6 +14,26 @@ async function detectTargets(root) {
   return found.length > 0 ? [...new Set(found)] : [DEFAULT_TARGET];
 }
 
+/**
+ * Write skills.json fresh: detect targets from the directories present, or
+ * use the targets a caller already gave via -a/-t, and print exactly what
+ * `init` prints for it.
+ *
+ * Shared by `init` and by `add`, which creates the manifest itself when there
+ * is not one rather than making a separate command a prerequisite for
+ * installing anything.
+ */
+export async function createManifest({ root, targets }) {
+  const detected = targets.length > 0 ? targets : await detectTargets(root);
+  const manifest = defaultManifest({ targets: detected });
+  await writeManifest(root, manifest);
+
+  line(`${symbol.ok} wrote ${bold(MANIFEST_FILE)}`);
+  line(`  targets: ${detected.join(', ')} ${dim(targets.length > 0 ? '(from --target)' : '(detected)')}`);
+
+  return manifest;
+}
+
 export async function init({ root, targets }) {
   const existing = await readManifest(root);
   if (existing) {
@@ -21,11 +41,8 @@ export async function init({ root, targets }) {
     return 0;
   }
 
-  const detected = targets.length > 0 ? targets : await detectTargets(root);
-  await writeManifest(root, defaultManifest({ targets: detected }));
+  await createManifest({ root, targets });
 
-  line(`${symbol.ok} wrote ${bold(MANIFEST_FILE)}`);
-  line(`  targets: ${detected.join(', ')} ${dim(targets.length > 0 ? '(from --target)' : '(detected)')}`);
   line();
   line(`${symbol.arrow} next: ${bold('agentic add <source>')}`);
   return 0;

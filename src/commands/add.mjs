@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { resolveSource } from '../fetch.mjs';
@@ -6,10 +7,11 @@ import { discoverSkills, installOne } from '../install.mjs';
 import { readLock, writeLock } from '../lock.mjs';
 import { MANIFEST_FILE, readManifest, setSkill, writeManifest } from '../manifest.mjs';
 import { parseSkill } from '../skill.mjs';
-import { parseSource } from '../source.mjs';
+import { githubShorthand, parseSource } from '../source.mjs';
 import { bold, dim, line, reportViolations, symbol } from '../ui.mjs';
 import { frameBar, frameClose, frameOpen, frameStep } from '../ui/frame.mjs';
 import { pickSkills } from '../ui/picker.mjs';
+import { createManifest } from './init.mjs';
 
 /**
  * What "add <source>" actually installs.
@@ -84,6 +86,35 @@ async function skillDescriptions(found) {
 }
 
 /**
+ * What `add` installs when it is given no source and the manifest has
+ * nothing listed either: this tool's own repository, pinned to the version
+ * currently running, read straight out of package.json rather than
+ * hardcoded, so a release bump and this default never drift apart.
+ *
+ * Pure: package.json already parsed in, a spec string or null out, so the
+ * edge cases (no repository field, a non-github remote) are testable without
+ * touching disk.
+ */
+export function defaultSourceFromPackage(pkg) {
+  const url = pkg?.repository?.url ?? (typeof pkg?.repository === 'string' ? pkg.repository : null);
+  const shorthand = githubShorthand(url);
+  if (!shorthand || !pkg?.version) return null;
+  return `${shorthand}#v${pkg.version}`;
+}
+
+/** Read this package's own package.json and resolve the default source from it. */
+export async function resolveDefaultSource() {
+  const path = new URL('../../package.json', import.meta.url);
+  let pkg;
+  try {
+    pkg = JSON.parse(await readFile(path, 'utf8'));
+  } catch {
+    return null;
+  }
+  return defaultSourceFromPackage(pkg);
+}
+
+/**
  * Install one skill, every skill in the manifest when no spec is given, or
  * every skill a multi-skill source provides.
  *
@@ -104,10 +135,31 @@ export async function add({
   all = false,
   interactive = false,
 }) {
-  const manifest = await readManifest(root);
+  let manifest = await readManifest(root);
   if (!manifest) {
-    line(`${symbol.fail} no ${MANIFEST_FILE} here, so run ${bold('agentic init')} first.`);
-    return 1;
+    // Requiring a separate command to create a file this one can create
+    // itself is friction for no benefit: detect targets (or take --target)
+    // exactly as init would, print the same line init prints, then keep
+    // going into the install below.
+    manifest = await createManifest({ root, targets });
+  }
+
+  // A source is required to install anything. When the caller gave none and
+  // the manifest has nothing listed either, either just created or genuinely
+  // empty, default to this tool's own skills rather than reporting "nothing
+  // to install" for a state that only exists because nothing has ever been
+  // added yet. A manifest that already lists skills keeps today's behavior
+  // untouched: bare `add` installs those, and never touches this default.
+  if (!spec && Object.keys(manifest.skills).length === 0) {
+    const defaultSpec = await resolveDefaultSource();
+    if (!defaultSpec) {
+      line(
+        `${symbol.fail} no source given, ${MANIFEST_FILE} lists no skills, and this package's own repository could not be determined from package.json, so pass a source explicitly.`,
+      );
+      return 1;
+    }
+    line(`no source given, installing this tool's own skills from ${defaultSpec}`);
+    spec = defaultSpec;
   }
 
   let requests;

@@ -14,7 +14,7 @@ test('every signal exists as a key even when absent', () => {
   for (const id of [
     'packageManager', 'languages', 'frameworks', 'database', 'httpRoutes',
     'backgroundWork', 'ui', 'browserTooling', 'secrets', 'tests', 'commands',
-    'workflowSkills', 'librarySkills', 'domainLayer',
+    'workflowSkills', 'librarySkills', 'domainLayer', 'promptFirst',
   ]) {
     assert.ok(id in signals, `${id} missing`);
     assert.equal(typeof signals[id].present, 'boolean');
@@ -67,6 +67,31 @@ test('reads workflow skills from the lockfile', () => {
   }));
   assert.equal(signals.workflowSkills.present, true);
   assert.deepEqual(signals.workflowSkills.detail, ['develop']);
+});
+
+test('detects library skills from .claude/skills', () => {
+  const { signals } = profile(snap({}, ['.claude/skills/audit/SKILL.md']));
+  assert.equal(signals.librarySkills.present, true);
+  assert.deepEqual(signals.librarySkills.detail, ['audit']);
+});
+
+test('detects library skills from .agents/skills', () => {
+  const { signals } = profile(snap({}, ['.agents/skills/scope/SKILL.md']));
+  assert.equal(signals.librarySkills.present, true);
+  assert.deepEqual(signals.librarySkills.detail, ['scope']);
+});
+
+test('detects prompt first mode from skills.json', () => {
+  const { signals } = profile(snap({ 'skills.json': '{"promptFirst":true}' }));
+  assert.equal(signals.promptFirst.present, true);
+  assert.deepEqual(signals.promptFirst.evidence, ['skills.json']);
+});
+
+test('does not detect prompt first mode when skills.json omits it or sets it false', () => {
+  const { signals: withoutField } = profile(snap({ 'skills.json': '{}' }));
+  assert.equal(withoutField.promptFirst.present, false);
+  const { signals: explicitFalse } = profile(snap({ 'skills.json': '{"promptFirst":false}' }));
+  assert.equal(explicitFalse.promptFirst.present, false);
 });
 
 test('malformed json does not throw, it reports absent', () => {

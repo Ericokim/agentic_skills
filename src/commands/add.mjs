@@ -44,7 +44,14 @@ async function planRequests({ spec, name, only, cacheDir, cwd }) {
     selected = found.filter((skill) => wanted.includes(skill.name));
   }
 
-  return { requests: selected.map((skill) => ({ spec: skill.path, name: skill.name })), found };
+  // Keep the original spec (a git source, its ref, everything) rather than the
+  // resolved directory. installOne re-resolves from spec + name, via the same
+  // locateSkill lookup discoverSkills just used to find this skill, so nothing
+  // is lost by not handing it the already-resolved path - and what would be
+  // lost by handing it the resolved path is the source itself: committed to
+  // skills.json, a resolved directory is a path inside the local cache, useless
+  // to anyone else and to this same machine once the cache is cleared.
+  return { requests: selected.map((skill) => ({ spec, name: skill.name })), found };
 }
 
 /**

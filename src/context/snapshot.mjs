@@ -13,6 +13,15 @@ import { readIfPresent } from '../fs-util.mjs';
 /** Directories never worth walking. */
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'coverage', 'vendor', 'target', '.next']);
 
+/**
+ * Dot directories worth walking into despite the general dot-directory skip:
+ * CI config lives under .github, and installed library skills live under
+ * .claude/skills and .agents/skills. Without this, librarySkills detection in
+ * profile.mjs can never fire, because the paths it looks for never reach the
+ * snapshot.
+ */
+const KEEP_DOTDIRS = new Set(['.github', '.claude', '.agents']);
+
 /** Dot files that carry configuration worth reading. */
 const KEEP_DOTFILES = new Set(['.env.example', '.env.sample', '.gitignore', '.nvmrc', '.tool-versions']);
 
@@ -57,7 +66,7 @@ export async function takeSnapshot(root) {
     for (const entry of entries) {
       const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.isDirectory()) {
-        if (SKIP_DIRS.has(entry.name) || (entry.name.startsWith('.') && entry.name !== '.github')) continue;
+        if (SKIP_DIRS.has(entry.name) || (entry.name.startsWith('.') && !KEEP_DOTDIRS.has(entry.name))) continue;
         await walk(join(dir, entry.name), relative);
         continue;
       }

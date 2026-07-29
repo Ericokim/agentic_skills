@@ -7,7 +7,7 @@ import { assemble } from '../../src/context/assemble.mjs';
 const sig = (on = {}) => {
   const ids = ['packageManager','languages','frameworks','database','httpRoutes',
     'backgroundWork','ui','browserTooling','secrets','tests','commands',
-    'workflowSkills','librarySkills','domainLayer'];
+    'workflowSkills','librarySkills','domainLayer','promptFirst'];
   return Object.fromEntries(ids.map((id) => [id, { present: Boolean(on[id]), evidence: [] }]));
 };
 

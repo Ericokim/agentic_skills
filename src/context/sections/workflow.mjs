@@ -5,19 +5,31 @@ export const number = 2;
 export const title = 'Workflow';
 export const when = () => true;
 
+/** How this project runs `/develop`, given whether it opted into prompt first mode. */
+function promptFirstNote(signals) {
+  return signals.promptFirst.present
+    ? '`/develop` runs prompt first by default in this project.'
+    : 'Prompt first is available per request with `/develop prompt <request>`.';
+}
+
 export function text(signals) {
   if (signals.workflowSkills.present) {
+    const names = signals.workflowSkills.detail ?? [];
+    const list =
+      names.length > 0
+        ? names.map((name) => `- \`/${name}\``).join('\n')
+        : '- the workflow skills installed in this project';
+
     return `# 2. Workflow
 
-This repository has the agentic workflow skills installed. Use them instead
-of improvising a process:
+This repository has agentic workflow skills installed. Use them instead of
+improvising a process:
 
-- \`/scope\` to turn a request into a scoped unit of work.
-- \`/architect\` to plan the change before touching code.
-- \`/develop\` to implement it.
-- \`/check\` to verify it before calling it done.
+${list}
 
-Do not skip a stage because the change looks small.`;
+Do not skip a stage because the change looks small.
+
+${promptFirstNote(signals)}`;
   }
 
   return `# 2. Workflow

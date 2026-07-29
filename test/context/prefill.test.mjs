@@ -38,8 +38,38 @@ test('renders workflow skills as a list', () => {
   const out = prefill(p(sig({
     workflowSkills: { present: true, evidence: ['skills.lock'], detail: ['audit', 'develop'] },
   })));
-  assert.match(out.WORKFLOW_SKILLS, /- `\/audit`/);
-  assert.match(out.WORKFLOW_SKILLS, /- `\/develop`/);
+  assert.match(out.INSTALLED_SKILLS, /- `\/audit`/);
+  assert.match(out.INSTALLED_SKILLS, /- `\/develop`/);
+});
+
+test('renders a combined skills summary naming workflow and library skills', () => {
+  const out = prefill(p(sig({
+    workflowSkills: { present: true, evidence: ['skills.lock'], detail: ['develop'] },
+    librarySkills: { present: true, evidence: ['.claude/skills/audit/SKILL.md'], detail: ['audit'] },
+  })));
+  assert.match(out.SKILLS_SUMMARY, /`\/develop`/);
+  assert.match(out.SKILLS_SUMMARY, /`audit`/);
+});
+
+test('leaves the skills summary unkeyed when neither kind of skill is detected', () => {
+  const out = prefill(p(sig()));
+  assert.equal('SKILLS_SUMMARY' in out, false);
+});
+
+test('derives the run command from the detected package manager', () => {
+  const out = prefill(p(sig({
+    packageManager: { present: true, evidence: ['pnpm-lock.yaml'], detail: 'pnpm' },
+    commands: { present: true, evidence: ['package.json'], detail: { test: 'vitest run', build: 'tsc' } },
+  })));
+  assert.match(out.COMMANDS_TABLE, /`pnpm run build` \| `tsc`/);
+  assert.match(out.COMMANDS_TABLE, /`pnpm test` \| `vitest run`/);
+});
+
+test('falls back to npm when the package manager is unknown', () => {
+  const out = prefill(p(sig({
+    commands: { present: true, evidence: ['package.json'], detail: { build: 'tsc' } },
+  })));
+  assert.match(out.COMMANDS_TABLE, /`npm run build` \| `tsc`/);
 });
 
 test('is pure', () => {

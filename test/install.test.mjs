@@ -7,9 +7,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 
 import { add } from '../src/commands/add.mjs';
 import { commitInstall, detectDrift, discoverSkills, locateSkill, prepareInstall } from '../src/install.mjs';
@@ -48,6 +50,29 @@ async function sourceSkill(name, contents) {
   await mkdir(skillDir, { recursive: true });
   await writeFile(join(skillDir, 'SKILL.md'), contents, 'utf8');
   return skillDir;
+}
+
+const runGit = promisify(execFile);
+
+/**
+ * A real local git repository, tagged v1.0.0, holding several skills under
+ * skills/. Standing in for a git+file source so a multi-skill install can be
+ * proven to keep recording it as one, rather than the resolved cache path.
+ */
+async function taggedGitSource(names) {
+  const dir = await mkdtemp(join(tmpdir(), 'agentic-gitsrc-'));
+  for (const name of names) {
+    const skillDir = join(dir, 'skills', name);
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(join(skillDir, 'SKILL.md'), GOOD.replace('name: build', `name: ${name}`), 'utf8');
+  }
+  await runGit('git', ['init'], { cwd: dir });
+  await runGit('git', ['config', 'user.email', 'test@example.com'], { cwd: dir });
+  await runGit('git', ['config', 'user.name', 'Test'], { cwd: dir });
+  await runGit('git', ['add', '.'], { cwd: dir });
+  await runGit('git', ['commit', '-m', 'initial'], { cwd: dir });
+  await runGit('git', ['tag', 'v1.0.0'], { cwd: dir });
+  return dir;
 }
 
 /** A source directory holding several skills, laid out at its top level. */
@@ -376,6 +401,39 @@ test('add still installs a single-skill source exactly as before', async () => {
   assert.equal(code, 0);
   assert.doesNotMatch(output, /Found \d+ skills/);
   await readFile(join(root, '.claude/skills/build/SKILL.md'), 'utf8');
+});
+
+test('add --all from a tagged git source records the git spec and ref, not the resolved cache path', async () => {
+  const root = await project();
+  const cacheDir = await mkdtemp(join(tmpdir(), 'agentic-cache-'));
+  const gitSource = await taggedGitSource(['audit', 'scope']);
+
+  const code = await add({
+    root,
+    spec: `git+file://${gitSource}#v1.0.0`,
+    name: null,
+    only: null,
+    all: true,
+    targets: ['claude-code'],
+    cacheDir,
+    dryRun: false,
+    force: false,
+    cwd: root,
+  });
+
+  assert.equal(code, 0);
+
+  const manifest = JSON.parse(await readFile(join(root, 'skills.json'), 'utf8'));
+  for (const name of ['audit', 'scope']) {
+    const spec = manifest.skills[name];
+    assert.match(spec, /^git\+/, `${name}'s recorded spec should start with git+, got ${spec}`);
+    assert.match(spec, /#v1\.0\.0$/, `${name}'s recorded spec should keep the pinned ref, got ${spec}`);
+    assert.doesNotMatch(spec, /\.cache\/agentic/, `${name}'s recorded spec must not be a resolver cache path`);
+  }
+
+  const lock = JSON.parse(await readFile(join(root, 'skills.lock'), 'utf8'));
+  assert.ok(lock.audit.sha, 'audit should have a resolved commit sha');
+  assert.ok(lock.scope.sha, 'scope should have a resolved commit sha');
 });
 
 test('installing a multi-skill source never touches an existing AGENTS.md', async () => {

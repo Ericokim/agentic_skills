@@ -3,7 +3,8 @@
 export const id = 'prompt-files';
 export const number = 4;
 export const title = 'Prompt files';
-export const when = () => true;
+export const when = (signals) => signals.promptFirst.present;
+export const requires = 'prompt first mode enabled in skills.json';
 
 export function text(signals) {
   return `# 4. Prompt files

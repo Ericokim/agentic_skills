@@ -59,3 +59,19 @@ test('keeps .github so CI config can be read as evidence', async () => {
   assert.ok(snap.paths.includes('.github/workflows/ci.yml'));
   assert.equal(snap.files['.github/workflows/ci.yml'], 'name: check\n');
 });
+
+test('keeps .claude and .agents so library skills can be detected', async () => {
+  const root = await repo({
+    '.claude/skills/audit/SKILL.md': '# audit\n',
+    '.agents/skills/scope/SKILL.md': '# scope\n',
+  });
+  const snap = await takeSnapshot(root);
+  assert.ok(snap.paths.includes('.claude/skills/audit/SKILL.md'));
+  assert.ok(snap.paths.includes('.agents/skills/scope/SKILL.md'));
+});
+
+test('still skips .git despite keeping .claude and .agents', async () => {
+  const root = await repo({ '.git/config': 'core' });
+  const snap = await takeSnapshot(root);
+  assert.equal(snap.paths.length, 0);
+});

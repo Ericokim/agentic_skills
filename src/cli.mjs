@@ -30,7 +30,7 @@ process.stdout.on('error', (error) => {
   throw error;
 });
 
-const BOOLEAN_FLAGS = new Set(['dry-run', 'force', 'help', 'version', 'all']);
+const BOOLEAN_FLAGS = new Set(['dry-run', 'force', 'help', 'version', 'all', 'plan']);
 
 /** Parse `command args --flags` without a dependency. */
 export function parseArgv(argv) {

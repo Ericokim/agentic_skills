@@ -147,7 +147,7 @@ export function profile(snapshot) {
     database: empty(), httpRoutes: empty(), backgroundWork: empty(),
     ui: empty(), browserTooling: empty(), secrets: empty(), tests: empty(),
     commands: empty(), workflowSkills: empty(), librarySkills: empty(),
-    domainLayer: empty(),
+    domainLayer: empty(), promptFirst: empty(),
   };
 
   // Manifests, at any depth, so a monorepo workspace counts.
@@ -237,6 +237,12 @@ export function profile(snapshot) {
   if (lock && Object.keys(lock).length > 0) {
     mark(signals.workflowSkills, 'skills.lock');
     signals.workflowSkills.detail = Object.keys(lock).sort();
+  }
+
+  // Our own manifest names whether this project opted into prompt first mode.
+  const manifest = parseJson(snapshot.files['skills.json'] ?? '');
+  if (manifest && manifest.promptFirst === true) {
+    mark(signals.promptFirst, 'skills.json');
   }
 
   // CI workflows are a second source for commands.

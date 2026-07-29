@@ -6,7 +6,7 @@ import { SECTIONS, selectSections } from '../../src/context/registry.mjs';
 const signals = (on = {}) => {
   const ids = ['packageManager','languages','frameworks','database','httpRoutes',
     'backgroundWork','ui','browserTooling','secrets','tests','commands',
-    'workflowSkills','librarySkills','domainLayer'];
+    'workflowSkills','librarySkills','domainLayer','promptFirst'];
   return Object.fromEntries(ids.map((id) => [id, { present: Boolean(on[id]), evidence: [] }]));
 };
 
@@ -61,10 +61,10 @@ test('the registry holds all 28 blocks', () => {
   assert.equal(SECTIONS.length, 28);
 });
 
-test('14 blocks are always included and 14 are conditional', () => {
+test('13 blocks are always included and 15 are conditional', () => {
   const always = SECTIONS.filter((s) => s.when(signals())).length;
-  assert.equal(always, 14);
-  assert.equal(SECTIONS.length - always, 14);
+  assert.equal(always, 13);
+  assert.equal(SECTIONS.length - always, 15);
 });
 
 test('every conditional section names what it requires', () => {
@@ -78,7 +78,7 @@ test('every conditional section names what it requires', () => {
 test('a full profile selects all 28', () => {
   const all = signals({
     database: true, httpRoutes: true, backgroundWork: true, ui: true,
-    browserTooling: true, secrets: true, domainLayer: true,
+    browserTooling: true, secrets: true, domainLayer: true, promptFirst: true,
   });
   assert.equal(selectSections({ signals: all }).included.length, 28);
 });
@@ -91,9 +91,18 @@ test('no section text contains a fixed arity placeholder', () => {
 
 test('the workflow section names the installed skills when there are any', () => {
   const withSkills = signals({ workflowSkills: true });
+  withSkills.workflowSkills.detail = ['architect', 'develop'];
   const workflow = SECTIONS.find((s) => s.id === 'workflow');
   assert.match(workflow.text(withSkills), /\/develop/);
   assert.doesNotMatch(workflow.text(signals()), /\/develop/);
+});
+
+test('the workflow section falls back to generic phrasing when no skill names are given', () => {
+  const withSkills = signals({ workflowSkills: true });
+  const workflow = SECTIONS.find((s) => s.id === 'workflow');
+  const text = workflow.text(withSkills);
+  assert.match(text, /the workflow skills installed in this project/);
+  assert.doesNotMatch(text, /\/scope|\/architect|\/check/);
 });
 
 const CONDITIONAL_CASES = [
@@ -111,6 +120,7 @@ const CONDITIONAL_CASES = [
   ['domain-processor', { ui: true, domainLayer: true }],
   ['advanced-capability', { backgroundWork: true, ui: true, database: true }],
   ['visual-testing', { ui: true, browserTooling: true }],
+  ['prompt-files', { promptFirst: true }],
 ];
 
 test('each conditional section is included exactly when its evidence is present', () => {

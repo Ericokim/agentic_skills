@@ -25,10 +25,15 @@ function descriptor(fields) {
     ...fields,
     toString() {
       if (this.kind === 'file') return `file:${this.path}`;
-      const repo = this.shorthand ?? this.url;
       const subpath = this.subpath ? `/${this.subpath}` : '';
       const ref = this.ref ? `#${this.ref}` : '';
-      return `${repo}${subpath}${ref}`;
+      // A github shorthand round trips as itself. Anything else is a git
+      // remote by url, and needs the `git+` prefix put back so this string
+      // parses back to kind 'git' rather than being mistaken for a local
+      // path - `git+file://` is the case that would otherwise collide with
+      // the `file:` scheme this same toString uses for local sources above.
+      if (this.shorthand) return `${this.shorthand}${subpath}${ref}`;
+      return `git+${this.url}${subpath}${ref}`;
     },
   };
 }

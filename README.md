@@ -24,6 +24,14 @@
 
 ## ⚡ Quick start
 
+Needs Node 20+, git, and one agent tool (Claude Code, Codex, or Cursor):
+
+```bash
+node --version && git --version
+```
+
+Run this in a **real project**, not an empty folder. These skills read your code.
+
 ```bash
 cd your-project
 
@@ -31,7 +39,15 @@ npx -y github:Ericokim/agentic_skills#v0.1.0 init
 npx -y github:Ericokim/agentic_skills#v0.1.0 add github:Ericokim/agentic_skills/skills/audit#v0.1.0
 ```
 
-Then run `/audit` in your agent.
+```text
+✓ wrote skills.json
+  targets: claude-code (detected)
+✓ audit github:Ericokim/agentic_skills/skills/audit#v0.1.0 · 1 file
+```
+
+Then run `/audit` in your agent. It reads your manifests and CI config, **runs your build and test commands rather than assuming they work**, and writes `AGENTS.md` with what is actually true. Anything it could not verify is recorded as unknown rather than guessed.
+
+`init` detects your agent tools from `.claude/`, `.agents/`, and `.cursor/`. Override with `-t claude-code,codex` if it guesses wrong.
 
 **Run it from GitHub, not npm.** `agentic` and `agentic-skills` are taken on npm by unrelated packages, so `npx agentic` would run somebody else's code. Installed globally or as a dev dependency the command is just `agentic`, which is how it is written from here on.
 
@@ -49,7 +65,6 @@ Then run `/audit` in your agent.
 
 | | Section | What you get |
 |:--:|---|---|
-| 🚦 | [Getting started](docs/getting-started.md) | **New here?** One project, start to finish |
 | 🎯 | [What makes it different](#-what-makes-it-different) | The two problems this solves, with output |
 | 📐 | [The standard](#-the-standard) | Five rule families and the invariants between them |
 | 🧩 | [The nine workflow skills](#-the-nine-workflow-skills) | Usage and a use case for each |
@@ -60,10 +75,12 @@ Then run `/audit` in your agent.
 | 👥 | [Working as a team](#-working-as-a-team) | Reproducible installs, what to commit |
 | 💰 | [Token cost](#-token-cost) | Budgets, and measuring a real session |
 | 🌍 | [Portability](#-portability) | Rules that keep skills working everywhere |
+| 🩹 | [Troubleshooting](#-troubleshooting) | Every error message, and its fix |
+| 🚧 | [What this will not do](#-what-this-will-not-do) · [FAQ](#-faq) | The limits, stated plainly |
 | ✍️ | [Authoring a skill](#-authoring-a-skill) | Writing one that passes |
 | 🛠️ | [Development](#-development) | Tests, checks, architecture |
 
-**Deep dives:** [`docs/getting-started.md`](docs/getting-started.md) · [`docs/standard.md`](docs/standard.md) · [`docs/authoring.md`](docs/authoring.md) · [`docs/architecture.md`](docs/architecture.md) · [`docs/workflow-guide.md`](docs/workflow-guide.md)
+**Deep dives:** [`docs/standard.md`](docs/standard.md) · [`docs/authoring.md`](docs/authoring.md) · [`docs/architecture.md`](docs/architecture.md)
 
 ---
 
@@ -179,7 +196,21 @@ One writer per artifact, which is what keeps two skills from fighting over the s
 | `Beta` | adds `/test` |
 | `GA` | adds `/check review` and `/document` |
 
-New to this? The [getting started guide](docs/getting-started.md) walks one project through from nothing.
+### The thread that ties the stages together
+
+`/architect` writes acceptance criteria into the spec. `/develop` builds to them. `/check verify` proves each one against the running app. `/test` turns them into the first tests. `/document` describes what they delivered.
+
+That thread is why the spec matters more than any other artifact. Without it, each stage invents its own idea of what "working" means, and they quietly disagree.
+
+### The spec gate
+
+`/develop` asks one question before writing code: **would building this mean inventing a load bearing decision that no spec records?** If yes, it stops and routes to `/architect`.
+
+Load bearing means changing it later means changing code in many places: a stack, a data model, a provider, an auth boundary. Cheap to reverse needs no spec.
+
+You can override. The override is honored and it is not free: the assumption is written as an `Assumed` spec and flagged, so a decision made under time pressure lands in the repo rather than a chat log nobody rereads. The flag never blocks you declaring the feature done.
+
+The gate is layered, not magic. `/architect` names the source of every value a feature must produce, so gaps surface at design time, and `/develop` checks that coverage again before building. Together those catch most of it. Behavioural correctness is caught behind them by `/check verify` and `/test`.
 
 <details open>
 <summary><b>Usage and a use case for each</b></summary>
@@ -263,8 +294,6 @@ New to this? The [getting started guide](docs/getting-started.md) walks one proj
 > **Use case.** A test fails for a reason nobody understands. `/debug` runs a reproduce, localize, hypothesize, test, fix, verify loop, one hypothesis at a time, then pins the fix with a regression test checked in both directions.
 
 </details>
-
-Full walkthrough, including who owns which file and one idea followed from scope to shipped: [`docs/workflow-guide.md`](docs/workflow-guide.md).
 
 ---
 
@@ -469,6 +498,53 @@ agentic validate skills/     # the same code path add runs
 ```
 
 A green `validate` means installable. Conventions, budgets, and the full rule list: [`docs/authoring.md`](docs/authoring.md).
+
+---
+
+## 🩹 Troubleshooting
+
+| What you see | What it means | Do this |
+|---|---|---|
+| `no skills.json here` | `init` has not run in this directory | `cd` to the project, run `init` |
+| `has local edits, so it was left alone` | You edited an installed skill by hand | Keep it, or overwrite with `--force` |
+| `does not meet the standard` | The skill's rules contradict each other | Fix the source; the message names the rule |
+| `could not find a skill named X` | Wrong name or wrong repo | The message lists what the source does provide |
+| `repository not found` | Bad URL, or a private repo | Check the URL and your git access |
+| npx asks `Ok to proceed?` | You left out `-y` | Type `y`, or add `-y` |
+| Agent does not see the skill | Some tools cache the skill list | Restart your agent |
+
+`agentic list` checks everything at once, exits non zero, and names a fix for anything wrong.
+
+---
+
+## 🚧 What this will not do
+
+The limits matter as much as the features, and stating them is cheaper than letting someone discover them.
+
+- **It will not declare your work done.** `done` is yours. The depth only suggests where to stop, and a skipped step is recorded as skipped rather than held against you.
+- **It will not block you on an unratified decision.** An `Assumed` spec is a standing reminder, never a gate.
+- **The spec gate is strong, not absolute.** No prompt catches everything, which is why `/check verify` and `/test` sit behind it.
+- **A review reports, it does not edit.** What changes is your call.
+- **No skill rewrites another skill's files.** `/sync` adds lines and rewrites single lines it owns, never prose a person wrote. Where the repo contradicts curated text, it reports rather than resolves.
+- **The standard checks coherence, not quality.** It can prove a declaration is consistent and its rules were injected. It cannot prove the skill gives good advice. That still needs a person reading the output.
+
+---
+
+## ❓ FAQ
+
+**Do I have to run all nine?** No. A tiny change is `/develop` then `/check verify`. A bug is `/debug`.
+
+**What if there is no spec yet?** `/develop` stops and routes you to `/architect`. You can override, and the assumption is recorded rather than lost.
+
+**Is it fine to never ratify an `Assumed` spec?** Allowed, and not free. It stays visible in `docs/specs/` and resurfaces on a bare `/scope` or `/sync`. For a spike, leave it.
+
+**Why clear the session between stages?** A long chat costs more and drifts. The work is in files, so a fresh session reads current state from disk and loses nothing.
+
+**Where do files go if `docs/` is a published site?** They move to `.workflow/`, so internal planning does not ship to users.
+
+**What if my agent cannot spawn a reviewer?** `/check review` runs inline and says plainly that the review was not independent. That sentence is the finding.
+
+**Does updating the tool change my installed skills?** Yes, and that is the intended path. Injected blocks come from the version of `agentic` you run, so `agentic update` recompiles against the current standard.
 
 ---
 

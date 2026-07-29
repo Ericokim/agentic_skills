@@ -11,8 +11,8 @@
 // refusing to clobber a hand edited file is written once rather than once per
 // command.
 
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { mkdir, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { dirname, join, relative } from 'node:path';
 
 import { compile } from './compile.mjs';
 import { resolveSource } from './fetch.mjs';
@@ -161,6 +161,8 @@ export async function prepareInstall({ root, name, spec, targets, cacheDir, cwd 
       skill,
       compiled: null,
       files: [],
+      assets,
+      perTarget: new Map(),
       violations,
       droppedAssets: [],
     };
@@ -172,21 +174,29 @@ export async function prepareInstall({ root, name, spec, targets, cacheDir, cwd 
   // .agents/skills layout as generic, plus an adapter. Selecting both is
   // allowed, so collapse by path rather than writing the same bytes twice and
   // recording a duplicate in the lockfile.
+  //
+  // perTarget keeps each target's own file list too, alongside the merged
+  // byPath view - `copy` only ever needs the merge, but a symlink install
+  // needs to know which files belong to which target's own directory, to
+  // decide whether that whole directory can become one symlink or has to stay
+  // real because it mixes in something (codex's adapter) the shared canonical
+  // copy does not have.
   const byPath = new Map();
+  const perTarget = new Map();
   const dropped = new Set();
   for (const targetId of targets) {
     const target = targetById(targetId);
     const carried = target?.carriesAssets ? assets : [];
     if (assets.length > 0 && !target?.carriesAssets) dropped.add(targetId);
-    for (const file of planEmit(targetId, {
+    const files = planEmit(targetId, {
       root,
       name: resolvedName,
       compiled,
       skill,
       assets: carried,
-    })) {
-      byPath.set(file.path, file);
-    }
+    });
+    perTarget.set(targetId, files);
+    for (const file of files) byPath.set(file.path, file);
   }
 
   return {
@@ -196,21 +206,200 @@ export async function prepareInstall({ root, name, spec, targets, cacheDir, cwd 
     skill,
     compiled,
     files: [...byPath.values()],
+    assets,
+    perTarget,
     violations,
     droppedAssets: [...dropped].map((targetId) => ({ target: targetId, count: assets.length })),
   };
 }
 
-/** Write the planned files and return the lock entry describing them. */
-export async function commitInstall({ root, name, source, sha, files }) {
+// Where the single, canonical copy of a skill lives under `symlink` method -
+// one directory per skill, written once, that every selected target's
+// install path then points at instead of holding its own copy of the same
+// bytes.
+export const CANONICAL_DIR = '.agentic/skills';
+
+export function canonicalDir(root, name) {
+  return join(root, CANONICAL_DIR, name);
+}
+
+/** Write one real file, creating its parent directories first. */
+async function writeReal(path, contents) {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, contents, 'utf8');
+}
+
+/**
+ * Replace whatever is at `path` - nothing, a file, a directory, a stale
+ * symlink from a previous install - with a symlink to `target`.
+ *
+ * Relative for project scope, so a project stays portable if it is moved or
+ * cloned elsewhere; absolute for global scope, where the link and its target
+ * both live under the same fixed home directory anyway.
+ */
+async function replaceWithSymlink(path, target, { scope, type }) {
+  await mkdir(dirname(path), { recursive: true });
+  await rm(path, { recursive: true, force: true });
+  const to = scope === 'global' ? target : relative(dirname(path), target) || '.';
+  await symlink(to, path, type);
+}
+
+/**
+ * Group a skill's planned files by the directory (or, for a flat-file target
+ * like cursor, the file itself) each target actually installs to.
+ *
+ * Two targets can plan into the very same path - codex's adapter lands
+ * beside generic's SKILL.md, both under .agents/skills/<name> - and that pair
+ * already collapses into one path under `copy`. Grouping here the same way is
+ * what lets `symlink` decide, per root, whether the whole thing can become
+ * one symlink or has to stay a real directory because it mixes in something
+ * (codex's adapter) the shared canonical copy does not have.
+ */
+function groupByRoot(root, perTarget) {
+  const roots = new Map(); // relative root path -> { kind: 'dir'|'file', files: Map<relPath, contents> }
+  for (const [targetId, files] of perTarget) {
+    if (files.length === 0) continue;
+
+    if (targetId === 'cursor') {
+      const [file] = files;
+      const relRoot = relative(root, file.path);
+      roots.set(relRoot, { kind: 'file', files: new Map([['.', file.contents]]) });
+      continue;
+    }
+
+    const skillFile = files.find((file) => file.path.endsWith('/SKILL.md'));
+    if (!skillFile) continue; // a target this project has no adapter for yet
+    const rootPath = dirname(skillFile.path);
+    const relRoot = relative(root, rootPath);
+    const entry = roots.get(relRoot) ?? { kind: 'dir', files: new Map() };
+    for (const file of files) entry.files.set(relative(rootPath, file.path), file.contents);
+    roots.set(relRoot, entry);
+  }
+  return roots;
+}
+
+/**
+ * Write a skill with method `symlink`: the compiled skill and its assets go
+ * to the canonical directory once, and every selected target's install path
+ * becomes a symlink pointing at it - a directory symlink for every
+ * directory-shaped target whose output matches the canonical copy exactly, a
+ * file symlink for cursor's single rule file (kept, transformed, beside the
+ * canonical copy as cursor.mdc), and for a root that mixes in content the
+ * canonical copy does not have (codex's adapter, sharing generic's
+ * directory) a real directory with just the matching files symlinked in.
+ *
+ * Creating a symlink never fails the install: any error - including Windows
+ * without developer mode - falls back to writing that one file or directory
+ * for real, and is reported back for the caller to say so plainly.
+ *
+ * @returns {Promise<{canonical: string, links: string[], fallbacks: string[]}>}
+ */
+async function writeSymlinkInstall({ root, name, compiled, assets, perTarget, scope }) {
+  const canonical = canonicalDir(root, name);
+  const canonicalFiles = new Map([['SKILL.md', compiled], ...assets.map((a) => [a.relative, a.contents])]);
+
+  const cursorFiles = perTarget.get('cursor');
+  if (cursorFiles?.length > 0) canonicalFiles.set('cursor.mdc', cursorFiles[0].contents);
+
+  for (const [relPath, contents] of canonicalFiles) {
+    await writeReal(join(canonical, relPath), contents);
+  }
+
+  const links = [];
+  const fallbacks = [];
+
+  for (const [relRoot, { kind, files }] of groupByRoot(root, perTarget)) {
+    const linkPath = join(root, relRoot);
+
+    if (kind === 'file') {
+      try {
+        await replaceWithSymlink(linkPath, join(canonical, 'cursor.mdc'), { scope, type: 'file' });
+        links.push(relRoot);
+      } catch {
+        await writeReal(linkPath, files.get('.'));
+        fallbacks.push(`${relRoot} (could not create a symlink, copied instead)`);
+      }
+      continue;
+    }
+
+    const cursorCount = canonicalFiles.has('cursor.mdc') ? 1 : 0;
+    const isPureShape =
+      files.size === canonicalFiles.size - cursorCount &&
+      [...files].every(([relPath, contents]) => canonicalFiles.get(relPath) === contents);
+
+    let linkedWhole = false;
+    if (isPureShape) {
+      try {
+        await replaceWithSymlink(linkPath, canonical, { scope, type: 'dir' });
+        links.push(relRoot);
+        linkedWhole = true;
+      } catch {
+        fallbacks.push(`${relRoot} (could not create a symlink, copied instead)`);
+      }
+    }
+    if (linkedWhole) continue;
+
+    // Either this root mixes in target-only content (codex's adapter beside
+    // generic's SKILL.md) or the whole-directory symlink above failed to
+    // create: either way, write a real directory here, symlinking in just the
+    // files that match the canonical copy so editing that copy is still what
+    // every reader of this directory sees.
+    for (const [relPath, contents] of files) {
+      const filePath = join(linkPath, relPath);
+      if (canonicalFiles.get(relPath) === contents) {
+        try {
+          await replaceWithSymlink(filePath, join(canonical, relPath), { scope, type: 'file' });
+          links.push(join(relRoot, relPath));
+          continue;
+        } catch {
+          fallbacks.push(`${join(relRoot, relPath)} (could not create a symlink, copied instead)`);
+        }
+      }
+      await writeReal(filePath, contents);
+    }
+  }
+
+  return { canonical: relative(root, canonical), links, fallbacks };
+}
+
+/**
+ * Write the planned files and return the lock entry describing them.
+ *
+ * `copy` (the default) writes every planned file for real, exactly as this
+ * project always has. `symlink` writes the compiled skill once, to a
+ * canonical directory, and points every selected target's install path at it
+ * instead - see writeSymlinkInstall for how that split is decided per target.
+ * Either way the lock entry's `files` map is hashed from the same planned
+ * content, so drift detection reads the same regardless of method: a symlink
+ * resolves to the canonical file's real bytes exactly as a real file would.
+ */
+export async function commitInstall({
+  root,
+  name,
+  source,
+  sha,
+  files,
+  compiled,
+  assets = [],
+  perTarget = new Map(),
+  method = 'copy',
+  scope = 'project',
+}) {
+  const entry = lockEntry({ source: source.toString(), sha, standard: STANDARD_VERSION, files }, root);
+  entry.method = method;
+
+  if (method === 'symlink') {
+    const result = await writeSymlinkInstall({ root, name, compiled, assets, perTarget, scope });
+    entry.canonical = result.canonical;
+    entry.links = result.links.sort();
+    return { name, entry, fallbacks: result.fallbacks };
+  }
+
   for (const file of files) {
     await mkdir(dirname(file.path), { recursive: true });
     await writeFile(file.path, file.contents, 'utf8');
   }
-  return {
-    name,
-    entry: lockEntry({ source: source.toString(), sha, standard: STANDARD_VERSION, files }, root),
-  };
+  return { name, entry, fallbacks: [] };
 }
 
 /**
@@ -271,6 +460,8 @@ export async function installOne({
   force = false,
   dryRun = false,
   skipCurrent = false,
+  method = 'copy',
+  scope = 'project',
 }) {
   let prepared;
   try {
@@ -299,6 +490,6 @@ export async function installOne({
     return { status: 'planned', name: prepared.name, prepared, previous };
   }
 
-  const { entry } = await commitInstall({ root, ...prepared });
-  return { status: 'installed', name: prepared.name, entry, prepared, previous };
+  const { entry, fallbacks } = await commitInstall({ root, ...prepared, method, scope });
+  return { status: 'installed', name: prepared.name, entry, prepared, previous, fallbacks };
 }

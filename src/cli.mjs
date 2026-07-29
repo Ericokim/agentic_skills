@@ -83,6 +83,12 @@ ${bold('OPTIONS')}
       --all                 add: install every skill, skipping the wizard
       --global              add: install to the home directory instead of the
                              project, skipping the scope step of the wizard
+      --method <symlink|copy>
+                             add: how to install (symlink writes each skill
+                             once and points every agent at it; copy writes it
+                             separately per agent), skipping the method step
+                             of the wizard (default off a TTY, or with --all
+                             and no --method: copy)
       --answers <file>      context: a JSON file of cited answers to verify
       --root <dir>          project root (default: the working directory)
       --cache <dir>         source cache (default: ~/.cache/agentic/sources)
@@ -94,15 +100,17 @@ ${bold('OPTIONS')}
   -v, --version             show the versions
 
 ${bold('WIZARD')}
-  Running "agentic add <source>" in a terminal without --all opens a three
+  Running "agentic add <source>" in a terminal without --all opens a four
   step wizard: which skills (when the source offers more than one and
   --only/--name have not already chosen), which agent tools to install to
-  (unless -a/--target already said), and which scope to install into
-  (unless --global already forced it). ↑↓ move, space select, enter
-  confirm, esc or ctrl+c cancels. Typing filters by name, with no reserved
-  letters. Cancelling any step installs nothing and exits clean. Piped or
-  non-interactive runs skip the whole wizard and install everything to the
-  detected targets in project scope, same as --all.
+  (unless -a/--target already said), which scope to install into (unless
+  --global already forced it), and which method to install with - symlink
+  or copy (unless --method already said; symlink is first and is the
+  default). ↑↓ move, space select, enter confirm, esc or ctrl+c cancels.
+  Typing filters by name, with no reserved letters. Cancelling any step
+  installs nothing and exits clean. Piped or non-interactive runs skip the
+  whole wizard and install everything to the detected targets in project
+  scope with copy, same as --all.
 
 ${bold('SOURCES')}
   github:owner/repo#v1.0.0            a tag, branch, or commit
@@ -163,6 +171,11 @@ export async function main(argv) {
     }
   }
 
+  if (flags.method && !['symlink', 'copy'].includes(flags.method)) {
+    fail(`unknown method "${flags.method}", so use symlink or copy`);
+    return 2;
+  }
+
   switch (command) {
     case 'init':
       return init(shared);
@@ -174,6 +187,7 @@ export async function main(argv) {
         only: flags.only ?? null,
         all: Boolean(flags.all),
         global: Boolean(flags.global),
+        method: flags.method ?? null,
       });
     case 'update':
       return update({ ...shared, name: args[0] ?? null });

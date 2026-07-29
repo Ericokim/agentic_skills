@@ -8,13 +8,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { add, defaultSourceFromPackage, resolveDefaultSource } from '../src/commands/add.mjs';
 import { init } from '../src/commands/init.mjs';
+import { list } from '../src/commands/list.mjs';
+import { remove } from '../src/commands/remove.mjs';
 import { commitInstall, detectDrift, discoverSkills, locateSkill, prepareInstall } from '../src/install.mjs';
 import { readLock, writeLock } from '../src/lock.mjs';
 import { defaultManifest, writeManifest } from '../src/manifest.mjs';
@@ -184,6 +186,46 @@ test('installing to several targets writes each one', async () => {
   ]) {
     await readFile(join(root, relative), 'utf8');
   }
+});
+
+test('symlink round trip: editing the canonical file is detected as drift, and remove cleans up both the links and the canonical directory', async () => {
+  const root = await project();
+  const spec = await sourceSkill('build', GOOD);
+
+  const code = await add({
+    root,
+    spec,
+    name: null,
+    only: null,
+    targets: ['claude-code'],
+    cacheDir: tmpdir(),
+    dryRun: false,
+    force: false,
+    cwd: root,
+    method: 'symlink',
+  });
+  assert.equal(code, 0);
+
+  const linkPath = join(root, '.claude/skills/build');
+  const canonicalDir = join(root, '.agentic/skills/build');
+  const canonicalSkill = join(canonicalDir, 'SKILL.md');
+
+  assert.ok((await lstat(linkPath)).isSymbolicLink(), 'the agent directory should be a symlink');
+  assert.ok((await lstat(canonicalSkill)).isFile(), 'the canonical directory should hold the real file');
+  // Reading through the link resolves to the canonical file's own bytes.
+  assert.equal(await readFile(join(linkPath, 'SKILL.md'), 'utf8'), await readFile(canonicalSkill, 'utf8'));
+
+  await writeFile(canonicalSkill, `${await readFile(canonicalSkill, 'utf8')}\nedited by a person\n`, 'utf8');
+
+  const { result: listCode, output } = await captureOutput(() => list({ root }));
+  assert.equal(listCode, 1);
+  assert.match(output, /edited by hand/);
+
+  const removeCode = await remove({ root, name: 'build' });
+  assert.equal(removeCode, 0);
+
+  await assert.rejects(() => lstat(linkPath), 'the symlink should be gone');
+  await assert.rejects(() => lstat(canonicalDir), 'the canonical directory should be gone');
 });
 
 test('locateSkill names what a source actually contains when the skill is missing', async () => {

@@ -39,6 +39,15 @@ const SCOPE_ITEMS = [
   { id: 'global', label: 'Global', hint: 'Install in your home directory, available in every project' },
 ];
 
+// Symlink first, and the default: with 11 targets, installing every skill to
+// every agent copies the same bytes over and over, and updating means
+// rewriting every copy. A symlink install writes each skill once and points
+// every agent at it, so an update touches one file and every agent sees it.
+const METHOD_ITEMS = [
+  { id: 'symlink', label: 'Symlink (Recommended)', hint: 'Single source of truth, easy updates' },
+  { id: 'copy', label: 'Copy to all agents' },
+];
+
 function agentItems() {
   return TARGETS.filter((target) => target.id !== GENERIC_TARGET_ID).map((target) => ({
     name: target.id,
@@ -170,6 +179,9 @@ export async function add({
   interactive = false,
   global = false,
   home,
+  method = null,
+  input = process.stdin,
+  output = process.stdout,
 }) {
   // Where things actually land. Project scope (the default) is the project
   // itself, exactly as every command has always behaved; --global moves both
@@ -263,7 +275,7 @@ export async function add({
     line(frameStep(`Found ${found.length} ${found.length === 1 ? 'skill' : 'skills'}`));
 
     const items = await skillDescriptions(found);
-    const chosen = await pickSkills(items);
+    const chosen = await pickSkills(items, { input, output });
 
     if (chosen === null || chosen.length === 0) return cancelWizard();
 
@@ -286,6 +298,8 @@ export async function add({
 
     const preselected = manifest.targets.filter((id) => id !== GENERIC_TARGET_ID);
     const chosenAgents = await pickSkills(agentItems(), {
+      input,
+      output,
       title: 'Which agents do you want to install to?',
       group: 'Additional agents',
       always: UNIVERSAL_READERS,
@@ -306,7 +320,7 @@ export async function add({
   // scope above; project is the default and is offered first.
   if (runWizard && !global) {
     openWizard();
-    const chosenScope = await pickOne(SCOPE_ITEMS, { title: 'Installation scope' });
+    const chosenScope = await pickOne(SCOPE_ITEMS, { input, output, title: 'Installation scope' });
 
     if (chosenScope === null) return cancelWizard();
 
@@ -317,6 +331,26 @@ export async function add({
       scope = chosenScope;
       ({ installRoot, manifestRoot } = resolveRoots({ scope, projectRoot: root, home }));
     }
+  }
+
+  // Step 4: installation method. Skipped when the caller already said via
+  // --method. Off a TTY, or with --all and no --method, this defaults to
+  // copy without ever opening the picker - that is what a CI checkout and a
+  // committed skills folder expect, and symlinks would only leave a CI runner
+  // with dangling links once its ephemeral workspace is gone.
+  let installMethod = method;
+  if (runWizard && !installMethod) {
+    openWizard();
+    const chosenMethod = await pickOne(METHOD_ITEMS, { input, output, title: 'Installation method' });
+
+    if (chosenMethod === null) return cancelWizard();
+
+    line(frameStep('Installation method'));
+    line(frameLine(chosenMethod === 'symlink' ? 'Symlink' : 'Copy to all agents'));
+
+    installMethod = chosenMethod;
+  } else if (!installMethod) {
+    installMethod = 'copy';
   }
 
   if (wizardOpen) line(frameClose());
@@ -357,6 +391,8 @@ export async function add({
       lock,
       force,
       dryRun,
+      method: installMethod,
+      scope,
     });
 
     switch (result.status) {
@@ -407,6 +443,14 @@ export async function add({
           line(
             `    ${symbol.warn} ${dim(`${drop.target} cannot carry bundled files, so ${drop.count} were left out and this skill will be incomplete there`)}`,
           );
+        }
+        // A symlink attempt can fail for reasons that have nothing to do with
+        // this skill - Windows without developer mode, most commonly - and
+        // installOne already fell back to a real copy rather than failing the
+        // install over it. Say so, rather than letting a silent fallback look
+        // like the symlink install this was asked for.
+        for (const fallback of result.fallbacks ?? []) {
+          line(`    ${symbol.warn} ${dim(fallback)}`);
         }
       }
     }

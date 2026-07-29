@@ -90,7 +90,7 @@ export async function list({ root }) {
     return 0;
   }
 
-  const rows = [[dim('SKILL'), dim('SOURCE'), dim('STANDARD'), dim('STATUS')]];
+  const rows = [[dim('SKILL'), dim('SOURCE'), dim('STANDARD'), dim('METHOD'), dim('STATUS')]];
   for (const name of names) {
     const entry = lock[name];
     const drift = entry ? await detectDrift(root, entry) : [];
@@ -98,6 +98,7 @@ export async function list({ root }) {
       bold(name),
       cyan(manifest.skills[name]),
       entry?.standard ?? dim('-'),
+      entry?.method ?? dim('-'),
       statusOf(entry, drift),
     ]);
   }

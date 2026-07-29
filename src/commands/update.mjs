@@ -44,6 +44,11 @@ export async function update({ root, name, targets, cacheDir, dryRun, force, cwd
   let changed = 0;
 
   for (const skillName of names) {
+    // An update keeps maintaining a skill the same way it was installed:
+    // symlink stays symlink, copy stays copy. There is no --method for
+    // update, on purpose - switching methods is what a fresh `agentic add`
+    // is for.
+    const method = lock[skillName]?.method ?? 'copy';
     const result = await installOne({
       root,
       name: skillName,
@@ -55,6 +60,7 @@ export async function update({ root, name, targets, cacheDir, dryRun, force, cwd
       force,
       dryRun,
       skipCurrent: true,
+      method,
     });
 
     switch (result.status) {
@@ -91,6 +97,9 @@ export async function update({ root, name, targets, cacheDir, dryRun, force, cwd
         lock[skillName] = result.entry;
         changed += 1;
         line(`${symbol.ok} ${bold(skillName)} ${dim(reasonFor(result))}`);
+        for (const fallback of result.fallbacks ?? []) {
+          line(`    ${symbol.warn} ${dim(fallback)}`);
+        }
       }
     }
   }

@@ -12,10 +12,7 @@ const ITEMS = [
 const KEY = {
   up: { name: 'up', sequence: '\x1b[A', ctrl: false },
   down: { name: 'down', sequence: '\x1b[B', ctrl: false },
-  k: { name: 'k', sequence: 'k', ctrl: false },
-  j: { name: 'j', sequence: 'j', ctrl: false },
   space: { name: 'space', sequence: ' ', ctrl: false },
-  a: { name: 'a', sequence: 'a', ctrl: false },
   enter: { name: 'return', sequence: '\r', ctrl: false },
   escape: { name: 'escape', sequence: '\x1b', ctrl: false },
   ctrlC: { name: 'c', sequence: '\x03', ctrl: true },
@@ -38,22 +35,10 @@ test('down moves the cursor forward', () => {
   assert.equal(state.cursor, 1);
 });
 
-test('j also moves the cursor forward', () => {
-  const state = reduce(initialState(ITEMS), KEY.j);
-  assert.equal(state.cursor, 1);
-});
-
 test('up moves the cursor backward', () => {
   let state = initialState(ITEMS);
   state = reduce(state, KEY.down);
   state = reduce(state, KEY.up);
-  assert.equal(state.cursor, 0);
-});
-
-test('k also moves the cursor backward', () => {
-  let state = initialState(ITEMS);
-  state = reduce(state, KEY.down);
-  state = reduce(state, KEY.k);
   assert.equal(state.cursor, 0);
 });
 
@@ -80,18 +65,6 @@ test('space again deselects it', () => {
   state = reduce(state, KEY.space);
   state = reduce(state, KEY.space);
   assert.ok(!state.selected.has('architect'));
-});
-
-test('a selects every visible item when none are selected', () => {
-  const state = reduce(initialState(ITEMS), KEY.a);
-  assert.deepEqual([...state.selected].sort(), ['architect', 'audit', 'check']);
-});
-
-test('a deselects every visible item when all are selected', () => {
-  let state = initialState(ITEMS);
-  state = reduce(state, KEY.a);
-  state = reduce(state, KEY.a);
-  assert.equal(state.selected.size, 0);
 });
 
 test('typing a character filters the visible list by name', () => {
@@ -209,12 +182,26 @@ test('reduce returns a new object rather than the same reference', () => {
   assert.notEqual(before, after);
 });
 
-test('j, k, and a are reserved for navigation and select-all, not search text', () => {
-  let state = initialState(ITEMS);
-  state = reduce(state, KEY.j);
-  state = reduce(state, KEY.k);
-  state = reduce(state, KEY.a);
-  assert.equal(state.search, '');
+test('typing a letter that used to be a shortcut goes to search', () => {
+  let state = initialState([
+    { name: 'audit', description: '' },
+    { name: 'check', description: '' },
+    { name: 'scope', description: '' },
+  ]);
+  for (const ch of 'audit') state = reduce(state, { name: ch, sequence: ch });
+  assert.equal(state.search, 'audit');
+  assert.deepEqual(visible(state).map((s) => s.name), ['audit']);
+});
+
+test('k and a filter rather than navigate', () => {
+  let state = initialState([
+    { name: 'check', description: '' },
+    { name: 'scope', description: '' },
+  ]);
+  state = reduce(state, { name: 'k', sequence: 'k' });
+  assert.equal(state.search, 'k');
+  assert.equal(state.cursor, 0);
+  assert.deepEqual(visible(state).map((s) => s.name), ['check']);
 });
 
 test('visible returns every item when search is empty', () => {

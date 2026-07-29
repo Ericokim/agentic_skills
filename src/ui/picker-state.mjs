@@ -6,10 +6,10 @@
 // src/ui/picker.mjs owns the terminal loop and contains no decision logic of
 // its own, it just feeds keypress events in here and renders what comes back.
 //
-// A small set of letters (j, k, a) are reserved for navigation and select-all
-// rather than falling into the search box, the same way a familiar picker's
-// vim-style bindings coexist with typing to filter. Every other printable
-// character is search text.
+// Only up/down and space are reserved for navigation and selecting; every
+// other printable character is search text, with no exceptions. That is
+// deliberate: typing a skill's name has to work even when that name starts
+// with a letter that some other picker might bind to a shortcut.
 
 /**
  * @param {{name: string, description: string}[]} items
@@ -63,18 +63,6 @@ function toggleSelected(state) {
   return { ...state, cursor, selected };
 }
 
-function toggleAll(state) {
-  const items = visible(state);
-  if (items.length === 0) return { ...state };
-  const allSelected = items.every((item) => state.selected.has(item.name));
-  const selected = new Set(state.selected);
-  for (const item of items) {
-    if (allSelected) selected.delete(item.name);
-    else selected.add(item.name);
-  }
-  return { ...state, selected };
-}
-
 function setSearch(state, search) {
   const cursor = clampCursor(state.cursor, visible({ ...state, search }).length);
   return { ...state, search, cursor };
@@ -108,15 +96,13 @@ export function reduce(state, key = {}) {
   if (ctrl && name === 'c') return cancel(state);
   if (name === 'escape') return cancel(state);
   if (name === 'return' || name === 'enter') return confirm(state);
-  if (name === 'up' || name === 'k') return moveCursor(state, -1);
-  if (name === 'down' || name === 'j') return moveCursor(state, 1);
+  if (name === 'up') return moveCursor(state, -1);
+  if (name === 'down') return moveCursor(state, 1);
   if (name === 'space') return toggleSelected(state);
-  if (name === 'a') return toggleAll(state);
   if (name === 'backspace') return backspace(state);
 
-  // j, k, and a are reserved for navigation above and never reach here, since
-  // readline names a letter keypress after the letter itself. Every other
-  // single, non-ctrl character typed is search text.
+  // Every other single, non-ctrl character typed is search text — including
+  // letters that used to be shortcuts elsewhere, like j, k, and a.
   if (!ctrl && typeof sequence === 'string' && sequence.length === 1 && sequence >= ' ') {
     return typeChar(state, sequence);
   }

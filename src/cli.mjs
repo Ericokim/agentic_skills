@@ -92,8 +92,8 @@ ${bold('OPTIONS')}
 ${bold('PICKER')}
   Running "agentic add <source>" in a terminal, against a source with more
   than one skill and no --only, --name, or --all, opens an interactive
-  picker: ↑↓ or j/k move, space toggles, a toggles all, enter confirms,
-  esc or ctrl+c cancels. Typing filters by name. Cancelling installs
+  picker: ↑↓ move, space select, enter confirm, esc or ctrl+c cancels.
+  Typing filters by name, with no reserved letters. Cancelling installs
   nothing and exits clean. Piped or non-interactive runs skip it and
   install everything, same as --all.
 

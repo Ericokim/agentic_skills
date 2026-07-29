@@ -20,7 +20,7 @@ const SHOW_CURSOR = `${ESC}[?25h`;
 const CLEAR_LINE = `${ESC}[2K`;
 const cursorUp = (n) => `${ESC}[${n}A`;
 
-const HINT = 'up/down or j/k move, space select, a all, enter confirm, esc cancel';
+const HINT = '↑↓ move, space select, enter confirm';
 
 /** Greedy word wrap to a width, no single line exceeding it. */
 function wrap(text, width) {

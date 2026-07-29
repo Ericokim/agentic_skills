@@ -8,12 +8,19 @@ discipline into the installed file, and a skill whose declaration is incoherent
 never installs at all.
 
 ```bash
-npx agentic init
-npx agentic add github:Ericokim/agentic_skills/skills/develop
+npx github:Ericokim/agentic_skills init
+npx github:Ericokim/agentic_skills add github:Ericokim/agentic_skills/skills/develop
 ```
 
 Works with Claude Code, Codex, Cursor, and any client that reads the open
 `.agents/skills` layout. Zero dependencies, so `npx` costs nothing to try.
+
+> **Run it from GitHub, not from npm.** This is not published to npm, and the
+> names `agentic` and `agentic-skills` are already taken there by unrelated
+> packages, so `npx agentic` would download and run somebody else's code. The
+> GitHub form above needs no publish step and always runs this repo. Once
+> installed globally or as a dev dependency, the command is just `agentic`, and
+> that is how it is written throughout this README.
 
 **Contents:** [Why](#why-this-exists) · [The standard](#the-standard) ·
 [The nine skills](#the-workflow-skills) · [Commands](#commands) ·
@@ -243,7 +250,11 @@ agentic tokens [file]       where the tokens went in a real session
 ```
 
 Options: `-t, --target`, `-n, --name`, `--root`, `--cache`, `--dry-run`,
-`--force`.
+`--force`, and for `tokens`, `--top` and `--project`.
+
+`list` and `validate` exit non zero when something is wrong, so either works as
+a CI or pre commit check. `validate` is the one to gate on: it runs the same
+code path `add` does, so a green validate means installable.
 
 ### Sources
 
@@ -259,14 +270,28 @@ and publishing is pushing.
 
 ### Targets
 
-| Target | Writes to |
-|---|---|
-| `claude-code` | `.claude/skills/<name>/SKILL.md` |
-| `codex` | `.agents/skills/<name>/` plus an `agents/openai.yaml` interface adapter |
-| `generic` | `.agents/skills/<name>/SKILL.md` |
-| `cursor` | `.cursor/rules/<name>.mdc` (lossy: one flat file, no bundled assets) |
+| Target | Writes to | Detected | Bundled files |
+|---|---|---|---|
+| `claude-code` | `.claude/skills/<name>/` | from `.claude/` | yes |
+| `generic` | `.agents/skills/<name>/` | from `.agents/` | yes |
+| `codex` | `.agents/skills/<name>/` plus an `agents/openai.yaml` picker adapter | opt in | yes |
+| `cursor` | `.cursor/rules/<name>.mdc` | from `.cursor/` | **no** |
 
-`init` detects which of these a project already uses.
+`init` detects which of these a project already uses, and at most one target per
+directory: `codex` writes the same `.agents` layout as `generic`, so detecting
+both would plan the same file twice. Add the Codex picker adapter with
+`-t codex` when you want it.
+
+**Bundled files travel with the skill.** A skill can ship mode files and
+templates beside its `SKILL.md` and reference them by relative path, and those
+files are installed with it. Cursor is the exception: a `.mdc` rule is one flat
+file with nowhere to put a sibling, so it says so at install time rather than
+leaving an agent to discover a missing file mid task:
+
+```
+✓ check · 1 file
+    ! cursor cannot carry bundled files, so 2 were left out and this skill will be incomplete there
+```
 
 ---
 
@@ -293,6 +318,76 @@ warns instead of silently overwriting work a person did on purpose:
 ! develop has local edits, so it was left alone:
     .claude/skills/develop/SKILL.md
     reinstall over them with --force
+```
+
+---
+
+## Adding it to a project you already have
+
+```bash
+cd your-project
+npx github:Ericokim/agentic_skills init      # detects the agent tools in use
+npx github:Ericokim/agentic_skills add github:Ericokim/agentic_skills/skills/audit
+```
+
+Three things are true of an existing repo that are worth knowing before you run
+it:
+
+- **It adds, and never modifies.** Installing writes `skills.json`,
+  `skills.lock`, and the skill directories. Nothing already in the repo is
+  edited or deleted, including skills you already had under `.claude/skills/`
+  or `.agents/skills/`.
+- **Names have to be free.** A skill installs under its own name, so a skill
+  you already have called `check` would be a collision. `list` shows what is
+  installed and where it came from.
+- **Start with `/audit` on an existing codebase.** It writes the AGENTS.md that
+  every other skill reads. Running `/scope` first plans against a project it has
+  not read.
+
+### Working as a team
+
+Commit `skills.json` and `skills.lock`. Let the installed directories be
+ignored, the way you would treat `node_modules`:
+
+```gitignore
+.claude/
+.agents/
+```
+
+A teammate then runs one command and gets exactly what you have, at the pinned
+commit:
+
+```bash
+npx github:Ericokim/agentic_skills add     # no argument: install everything in skills.json
+```
+
+The lockfile records the resolved commit and the standard version per skill, so
+this is reproducible rather than "whatever is on main today".
+
+### One subtlety worth knowing
+
+The injected blocks come from **the version of this tool you run**, not from the
+skill source. Two people on the same skill commit get different installed text
+if they run different versions of `agentic`. That is why the standard version is
+recorded per skill in the lockfile, and why `list` flags a skill compiled
+against an older standard:
+
+```
+develop  compiled against standard 1.0.0, current is 1.1.0
+  fix: agentic update develop
+```
+
+### Checking your own installed skills
+
+Running `validate` over an installed directory works and does the sensible
+thing. Installed skills are compiled output, so they are held to the rules that
+still apply once compiled (parse, name, budget, prose) and not asked for a
+standard declaration that the compiler deliberately stripped:
+
+```
+✓ 9 skills and 17 bundled files checked against standard 1.0.0, all pass
+  9 of these are installed skills, checked against the rules that still apply once compiled
+  to check declarations and invariants, validate the source they came from
 ```
 
 ---
@@ -358,8 +453,14 @@ list: [`docs/authoring.md`](docs/authoring.md).
 ```bash
 npm test          # node:test, no dependencies
 npm run validate  # the standard, against this repo's own skills
-npm run check     # both
+npm run check     # both, and what CI runs
+npm run tokens    # where the tokens went in your last session
 ```
+
+The standard's own injected prose is held to the rules it enforces on authors,
+by a test over every family at every level. Getting that wrong is worse than an
+author getting it wrong: an author breaks a rule in one skill, the standard
+breaks it in every skill it ships.
 
 Architecture and why the pipeline is shaped this way:
 [`docs/architecture.md`](docs/architecture.md).

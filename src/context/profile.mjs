@@ -4,15 +4,61 @@
 // why it believes something is a profile nobody can check, and this one is
 // shown to a person before anything is generated.
 
-/** Dependency names that imply each signal. */
+/**
+ * Dependency names that imply each signal.
+ *
+ * These come from every ecosystem this profiler recognises, not just npm.
+ * A name only ever needs to appear once per category; `dependencyNames`
+ * (exact match against a parsed package.json) and `manifestNameScan` (token
+ * scan against the raw text of every other manifest format) both read from
+ * this same list.
+ */
 const DEPENDENCY_HINTS = {
-  database: ['pg', 'mysql2', 'sqlite3', 'better-sqlite3', 'mongodb', 'mongoose', 'prisma', '@prisma/client', 'drizzle-orm', 'typeorm', 'sequelize', 'knex', '@supabase/supabase-js'],
-  httpRoutes: ['express', 'fastify', 'koa', 'hapi', '@nestjs/core', 'hono'],
-  backgroundWork: ['node-cron', 'bullmq', 'bull', 'agenda', 'celery', 'sidekiq', 'temporal', 'inngest', 'graphile-worker'],
-  ui: ['react', 'vue', 'svelte', '@angular/core', 'solid-js', 'preact'],
-  browserTooling: ['@playwright/test', 'playwright', 'cypress', 'puppeteer', 'selenium-webdriver'],
-  tests: ['vitest', 'jest', 'mocha', 'ava', 'tap', '@playwright/test'],
+  database: [
+    'pg', 'mysql2', 'sqlite3', 'better-sqlite3', 'mongodb', 'mongoose', 'prisma', '@prisma/client', 'drizzle-orm', 'typeorm', 'sequelize', 'knex', '@supabase/supabase-js',
+    'psycopg2', 'psycopg', 'asyncpg', 'sqlalchemy', 'alembic', 'django', 'peewee', 'pymongo', 'redis-py',
+    'sqlx', 'diesel', 'sea-orm', 'rusqlite',
+    'gorm', 'pgx', 'database/sql',
+    'activerecord', 'doctrine',
+  ],
+  httpRoutes: [
+    'express', 'fastify', 'koa', 'hapi', '@nestjs/core', 'hono',
+    'fastapi', 'flask', 'django', 'starlette', 'aiohttp', 'tornado',
+    'axum', 'actix-web', 'rocket', 'warp',
+    'gin-gonic', 'echo', 'fiber', 'chi',
+    'sinatra', 'rails', 'laravel', 'symfony', 'spring-boot',
+  ],
+  backgroundWork: [
+    'node-cron', 'bullmq', 'bull', 'agenda', 'celery', 'sidekiq', 'temporal', 'inngest', 'graphile-worker',
+    'rq', 'apscheduler', 'dramatiq', 'huey',
+    'tokio-cron-scheduler',
+    'resque', 'delayed_job',
+    'machinery',
+  ],
+  ui: [
+    'react', 'vue', 'svelte', '@angular/core', 'solid-js', 'preact',
+    'streamlit', 'gradio', 'dash',
+    'yew', 'leptos', 'dioxus',
+  ],
+  browserTooling: [
+    '@playwright/test', 'playwright', 'cypress', 'puppeteer', 'selenium-webdriver',
+    'selenium', 'splinter', 'capybara',
+  ],
+  tests: [
+    'vitest', 'jest', 'mocha', 'ava', 'tap', '@playwright/test',
+    'pytest', 'unittest2', 'nose2', 'tox',
+    'cargo-nextest',
+    'testify', 'ginkgo',
+    'rspec', 'minitest',
+    'phpunit',
+  ],
 };
+
+/**
+ * Manifest filenames (matched by basename, so a monorepo workspace still
+ * counts) scanned with `manifestNameScan` rather than parsed.
+ */
+const TEXT_MANIFESTS = ['requirements.txt', 'pyproject.toml', 'Cargo.toml', 'go.mod', 'Gemfile', 'composer.json'];
 
 /** Recognised framework names. */
 const FRAMEWORK_NAMES = [
@@ -50,6 +96,41 @@ function dependencyNames(manifest) {
     ...Object.keys(manifest?.peerDependencies ?? {}),
   ];
 }
+
+function escapeForRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Whether `name` appears as its own token anywhere in a manifest's raw text.
+ *
+ * This is a name scan, not a parser. requirements.txt, Cargo.toml, go.mod,
+ * Gemfile, pyproject.toml, and composer.json each have their own syntax for
+ * declaring a dependency (a version specifier, a TOML table, a require
+ * directive, a DSL call), and this profiler does not implement any of them.
+ * It does not need to: knowing that a known package name was declared
+ * somewhere in the manifest is sufficient evidence for a signal, and the
+ * name itself is usually the only fixed string across all of those syntaxes.
+ * The word-boundary anchors keep this honest about what it is a scan of the
+ * whole name as a token, so `pg` matches a bare `pg` line but not `pgcrypto`,
+ * and `sqlx` does not match inside some longer, unrelated identifier.
+ */
+function manifestNameScan(text, name) {
+  const pattern = new RegExp(`\\b${escapeForRegExp(name)}\\b`);
+  return pattern.test(text);
+}
+
+/** File extensions that identify a language, keyed to the name reported in `languages.detail`. */
+const LANGUAGE_EXTENSIONS = [
+  { pattern: /\.(ts|tsx)$/, name: 'typescript' },
+  { pattern: /\.(js|jsx|mjs)$/, name: 'javascript' },
+  { pattern: /\.py$/, name: 'python' },
+  { pattern: /\.rs$/, name: 'rust' },
+  { pattern: /\.go$/, name: 'go' },
+  { pattern: /\.rb$/, name: 'ruby' },
+  { pattern: /\.php$/, name: 'php' },
+  { pattern: /\.java$/, name: 'java' },
+];
 
 function mark(signal, evidence) {
   signal.present = true;
@@ -93,8 +174,21 @@ export function profile(snapshot) {
     }
   }
 
+  // Other ecosystems' manifests, at any depth. Scanned as text, not parsed;
+  // see manifestNameScan for why that is enough.
+  for (const [path, contents] of Object.entries(snapshot.files)) {
+    if (!TEXT_MANIFESTS.includes(path.split('/').pop())) continue;
+    for (const [id, names] of Object.entries(DEPENDENCY_HINTS)) {
+      if (names.some((name) => manifestNameScan(contents, name))) mark(signals[id], path);
+    }
+  }
+
   // Lockfiles name the package manager.
-  const LOCKS = { 'pnpm-lock.yaml': 'pnpm', 'package-lock.json': 'npm', 'yarn.lock': 'yarn', 'bun.lock': 'bun' };
+  const LOCKS = {
+    'pnpm-lock.yaml': 'pnpm', 'package-lock.json': 'npm', 'yarn.lock': 'yarn', 'bun.lock': 'bun',
+    'requirements.txt': 'pip', 'pyproject.toml': 'poetry',
+    'Cargo.lock': 'cargo', 'go.sum': 'go modules', 'Gemfile.lock': 'bundler', 'composer.lock': 'composer',
+  };
   for (const [file, name] of Object.entries(LOCKS)) {
     if (snapshot.files[file] !== undefined || snapshot.paths.includes(file)) {
       mark(signals.packageManager, file);
@@ -116,7 +210,13 @@ export function profile(snapshot) {
         signals.librarySkills.detail = [...seen].sort();
       }
     }
-    if (/\.(ts|tsx)$/.test(path)) { mark(signals.languages, path); signals.languages.detail = 'typescript'; }
+    for (const { pattern, name } of LANGUAGE_EXTENSIONS) {
+      if (!pattern.test(path)) continue;
+      mark(signals.languages, path);
+      const seen = new Set(signals.languages.detail ?? []);
+      seen.add(name);
+      signals.languages.detail = [...seen].sort();
+    }
   }
 
   // Environment samples name secrets.

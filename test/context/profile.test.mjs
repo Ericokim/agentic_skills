@@ -107,3 +107,135 @@ test('does not detect a domain layer from a components directory', () => {
   const { signals } = profile(snap({}, ['src/components/Button.tsx']));
   assert.equal(signals.domainLayer.present, false);
 });
+
+// --- Non-JS manifests: name scan, not a parser ---
+
+test('a requirements.txt with fastapi and celery detects httpRoutes and backgroundWork', () => {
+  const { signals } = profile(snap({ 'requirements.txt': 'fastapi==0.110.0\ncelery==5.3.0\n' }));
+  assert.equal(signals.httpRoutes.present, true);
+  assert.deepEqual(signals.httpRoutes.evidence, ['requirements.txt']);
+  assert.equal(signals.backgroundWork.present, true);
+  assert.deepEqual(signals.backgroundWork.evidence, ['requirements.txt']);
+});
+
+test('a Cargo.toml with axum and sqlx detects httpRoutes and database', () => {
+  const { signals } = profile(snap({
+    'Cargo.toml': '[dependencies]\naxum = "0.7"\nsqlx = { version = "0.7", features = ["postgres"] }\n',
+  }));
+  assert.equal(signals.httpRoutes.present, true);
+  assert.ok(signals.httpRoutes.evidence.includes('Cargo.toml'));
+  assert.equal(signals.database.present, true);
+  assert.ok(signals.database.evidence.includes('Cargo.toml'));
+});
+
+test('a go.mod with gin-gonic detects httpRoutes', () => {
+  const { signals } = profile(snap({
+    'go.mod': 'module example.com/app\n\nrequire github.com/gin-gonic/gin v1.9.1\n',
+  }));
+  assert.equal(signals.httpRoutes.present, true);
+  assert.ok(signals.httpRoutes.evidence.includes('go.mod'));
+});
+
+test('a Gemfile with rails and sidekiq detects httpRoutes and backgroundWork', () => {
+  const { signals } = profile(snap({
+    'Gemfile': "source 'https://rubygems.org'\ngem 'rails'\ngem 'sidekiq'\n",
+  }));
+  assert.equal(signals.httpRoutes.present, true);
+  assert.ok(signals.httpRoutes.evidence.includes('Gemfile'));
+  assert.equal(signals.backgroundWork.present, true);
+  assert.ok(signals.backgroundWork.evidence.includes('Gemfile'));
+});
+
+test('django in a requirements.txt is both a database and an httpRoutes signal', () => {
+  const { signals } = profile(snap({ 'requirements.txt': 'django==5.0\n' }));
+  assert.equal(signals.database.present, true);
+  assert.equal(signals.httpRoutes.present, true);
+});
+
+test('the name scan is anchored: pgcrypto does not match pg', () => {
+  const { signals } = profile(snap({ 'requirements.txt': 'pgcrypto==1.0\n' }));
+  assert.equal(signals.database.present, false);
+});
+
+test('the name scan matches pg as its own token', () => {
+  const { signals } = profile(snap({ 'requirements.txt': 'pg\n' }));
+  assert.equal(signals.database.present, true);
+  assert.deepEqual(signals.database.evidence, ['requirements.txt']);
+});
+
+test('a pyproject.toml is also scanned for dependency names', () => {
+  const { signals } = profile(snap({
+    'pyproject.toml': '[tool.poetry.dependencies]\nflask = "^3.0"\n',
+  }));
+  assert.equal(signals.httpRoutes.present, true);
+});
+
+test('a composer.json is scanned for dependency names', () => {
+  const { signals } = profile(snap({
+    'composer.json': '{"require": {"laravel/framework": "^11.0"}}',
+  }));
+  assert.equal(signals.httpRoutes.present, true);
+});
+
+// --- languages: extensions across the tree, not just TypeScript ---
+
+test('languages reports a sorted array of detected languages', () => {
+  const { signals } = profile(snap({}, ['src/main.py', 'src/app.rs']));
+  assert.equal(signals.languages.present, true);
+  assert.deepEqual(signals.languages.detail, ['python', 'rust']);
+});
+
+test('a mixed repo reports more than one language', () => {
+  const { signals } = profile(snap({}, ['src/index.ts', 'src/worker.py', 'src/main.go']));
+  assert.equal(signals.languages.present, true);
+  assert.equal(signals.languages.detail.length, 3);
+  assert.deepEqual(signals.languages.detail, ['go', 'python', 'typescript']);
+});
+
+test('javascript is detected distinctly from typescript', () => {
+  const { signals } = profile(snap({}, ['src/index.js', 'src/util.mjs']));
+  assert.deepEqual(signals.languages.detail, ['javascript']);
+});
+
+test('ruby, php, and java extensions are each detected', () => {
+  const { signals } = profile(snap({}, ['app.rb', 'index.php', 'Main.java']));
+  assert.deepEqual(signals.languages.detail, ['java', 'php', 'ruby']);
+});
+
+// --- packageManager: non-JS ecosystems ---
+
+test('a requirements.txt names pip as the package manager', () => {
+  const { signals } = profile(snap({ 'requirements.txt': 'flask\n' }));
+  assert.equal(signals.packageManager.present, true);
+  assert.equal(signals.packageManager.detail, 'pip');
+});
+
+test('a pyproject.toml names poetry as the package manager', () => {
+  const { signals } = profile(snap({ 'pyproject.toml': '[tool.poetry]\nname = "x"\n' }));
+  assert.equal(signals.packageManager.present, true);
+  assert.equal(signals.packageManager.detail, 'poetry');
+});
+
+test('a Cargo.lock names cargo as the package manager', () => {
+  const { signals } = profile(snap({}, ['Cargo.lock']));
+  assert.equal(signals.packageManager.present, true);
+  assert.equal(signals.packageManager.detail, 'cargo');
+});
+
+test('a go.sum names go modules as the package manager', () => {
+  const { signals } = profile(snap({}, ['go.sum']));
+  assert.equal(signals.packageManager.present, true);
+  assert.equal(signals.packageManager.detail, 'go modules');
+});
+
+test('a Gemfile.lock names bundler as the package manager', () => {
+  const { signals } = profile(snap({}, ['Gemfile.lock']));
+  assert.equal(signals.packageManager.present, true);
+  assert.equal(signals.packageManager.detail, 'bundler');
+});
+
+test('a composer.lock names composer as the package manager', () => {
+  const { signals } = profile(snap({}, ['composer.lock']));
+  assert.equal(signals.packageManager.present, true);
+  assert.equal(signals.packageManager.detail, 'composer');
+});

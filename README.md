@@ -49,6 +49,7 @@ Then run `/audit` in your agent.
 
 | | Section | What you get |
 |:--:|---|---|
+| 🚦 | [Getting started](docs/getting-started.md) | **New here?** One project, start to finish |
 | 🎯 | [What makes it different](#-what-makes-it-different) | The two problems this solves, with output |
 | 📐 | [The standard](#-the-standard) | Five rule families and the invariants between them |
 | 🧩 | [The nine workflow skills](#-the-nine-workflow-skills) | Usage and a use case for each |
@@ -62,7 +63,7 @@ Then run `/audit` in your agent.
 | ✍️ | [Authoring a skill](#-authoring-a-skill) | Writing one that passes |
 | 🛠️ | [Development](#-development) | Tests, checks, architecture |
 
-**Deep dives:** [`docs/standard.md`](docs/standard.md) · [`docs/authoring.md`](docs/authoring.md) · [`docs/architecture.md`](docs/architecture.md) · [`docs/workflow-guide.md`](docs/workflow-guide.md)
+**Deep dives:** [`docs/getting-started.md`](docs/getting-started.md) · [`docs/standard.md`](docs/standard.md) · [`docs/authoring.md`](docs/authoring.md) · [`docs/architecture.md`](docs/architecture.md) · [`docs/workflow-guide.md`](docs/workflow-guide.md)
 
 ---
 
@@ -153,6 +154,32 @@ State lives in files (a scope, specs, AGENTS.md, tests), not in a chat session, 
 | 🐛 | [`debug`](#debug) | Any time | Finds the root cause and makes the minimal fix | the fix |
 
 One writer per artifact, which is what keeps two skills from fighting over the same file.
+
+### Where to start
+
+| Situation | Start with | Why |
+|---|---|---|
+| **Existing codebase** | `/audit` → `/scope` → the loop | Every skill reads AGENTS.md, and `/scope` would otherwise plan against a project it has not read |
+| **New product** | `/scope` → `/architect` → scaffold → `/audit` → the loop | The stack is decided and the project exists before `/audit` runs, so it reads something real rather than describing intentions as facts |
+| **One small change** | Only what it needs | A typo is `/develop`. A bug is `/debug`. A change nobody will review needs no `/document` |
+| **Monorepo** | `/audit <workspace>` per package | Each workspace gets its own AGENTS.md with its own commands. One root file describing five packages describes none of them |
+
+**The feature loop**, once the context exists:
+
+```
+/architect → /develop → /check verify → /test → /check review → /document → /sync
+```
+
+`/scope` sets a depth for the project that you can override per feature. It is a suggested checking tail after `/develop`, never a track you are locked onto:
+
+| Depth | Suggested after `/develop` |
+|---|---|
+| `Prototype` | nothing, self checked, for throwaway work |
+| `Alpha` | `/check verify` |
+| `Beta` | adds `/test` |
+| `GA` | adds `/check review` and `/document` |
+
+New to this? The [getting started guide](docs/getting-started.md) walks one project through from nothing.
 
 <details open>
 <summary><b>Usage and a use case for each</b></summary>

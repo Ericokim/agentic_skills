@@ -167,3 +167,63 @@ has not read.
 Everything scopes to the target workspace. Each workspace has its own nested
 AGENTS.md with its own commands, its own scope, and its own stack. A single root
 context file describing five packages describes none of them.
+
+## What this will not do
+
+The limits matter as much as the features, and stating them is cheaper than
+letting someone discover them.
+
+- **It will not declare your work done.** `done` is yours to declare. The depth
+  you chose only suggests where to stop. A step you skip is recorded as skipped
+  rather than held against you.
+- **It will not block you on an unratified decision.** When `/develop` is
+  overridden and builds on an undecided design, the assumption is written as an
+  `Assumed` spec and flagged. The flag is a standing reminder, not a gate, and
+  it never stops you marking a feature done.
+- **The spec gate is strong, not absolute.** `/develop` stops when building
+  would mean inventing a load bearing decision, and `/architect` names the source
+  of every value a feature must produce so gaps surface at design time. That
+  catches most of it. No prompt catches everything, which is why `/check verify`
+  and `/test` exist behind it.
+- **A review reports, it does not edit.** `/check review` reads the diff and
+  ranks findings. What changes is your call.
+- **No skill rewrites another skill's files.** Ownership is fixed. `/sync` adds
+  lines and rewrites single lines it owns, and never touches prose a person
+  wrote. Where the repo contradicts curated text, it reports the contradiction
+  instead of resolving it.
+- **The standard checks coherence, not quality.** `agentic` can prove a skill's
+  declaration is consistent and that its rules were injected. It cannot prove
+  the skill gives good advice. That still needs a person reading the output.
+
+## Common questions
+
+**Do I have to run all nine?** No. Run only what a change needs. A tiny change
+is `/develop` then `/check verify`. A bug is `/debug`.
+
+**What if there is no spec yet?** If a real decision is missing, `/develop`
+stops and routes you to `/architect`. You can override and build anyway, and the
+assumption is recorded as an `Assumed` spec rather than lost in a chat log.
+
+**Is it fine to never ratify an `Assumed` spec?** Allowed, and not free. The
+assumption stays visible in `docs/specs/` and keeps surfacing when you run a bare
+`/scope` or `/sync`. For a throwaway spike, leave it. For real work, that
+visibility is the nudge to go ratify it.
+
+**Why clear the session between stages?** A long chat costs more and drifts.
+Because the work is in files, a fresh session reads the current state from disk
+and continues cleanly, so clearing loses nothing.
+
+**Where do the files go if `docs/` is a published site?** They move to
+`.workflow/`, so internal planning does not ship to your users.
+
+**Can one feature use a different depth?** Yes. The depth from `/scope` is the
+project default, and any feature can override it.
+
+**What if my agent cannot spawn a reviewer?** `/check review` runs inline and
+says plainly in its report that the review was not independent. That sentence is
+itself the finding.
+
+**Does updating the tool change my installed skills?** Yes, and that is the
+intended path. The injected blocks come from the version of `agentic` you run,
+so `agentic update` recompiles against the current standard. `agentic list`
+flags any skill compiled against an older one.

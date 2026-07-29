@@ -56,3 +56,42 @@ test('selectSections does not mutate the profile it is given', () => {
   selectSections(p);
   assert.equal(JSON.stringify(p), before);
 });
+
+test('the registry holds all 28 blocks', () => {
+  assert.equal(SECTIONS.length, 28);
+});
+
+test('14 blocks are always included and 14 are conditional', () => {
+  const always = SECTIONS.filter((s) => s.when(signals())).length;
+  assert.equal(always, 14);
+  assert.equal(SECTIONS.length - always, 14);
+});
+
+test('every conditional section names what it requires', () => {
+  for (const section of SECTIONS) {
+    if (section.when(signals())) continue;
+    assert.equal(typeof section.requires, 'string', `${section.id} has no requires`);
+    assert.ok(section.requires.length > 0, section.id);
+  }
+});
+
+test('a full profile selects all 28', () => {
+  const all = signals({
+    database: true, httpRoutes: true, backgroundWork: true, ui: true,
+    browserTooling: true, secrets: true,
+  });
+  assert.equal(selectSections({ signals: all }).included.length, 28);
+});
+
+test('no section text contains a fixed arity placeholder', () => {
+  for (const section of SECTIONS) {
+    assert.doesNotMatch(section.text(signals()), /\{\{[A-Z_]+_\d+\}\}/, `${section.id} has a numbered placeholder`);
+  }
+});
+
+test('the workflow section names the installed skills when there are any', () => {
+  const withSkills = signals({ workflowSkills: true });
+  const workflow = SECTIONS.find((s) => s.id === 'workflow');
+  assert.match(workflow.text(withSkills), /\/develop/);
+  assert.doesNotMatch(workflow.text(signals()), /\/develop/);
+});

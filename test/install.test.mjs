@@ -15,6 +15,7 @@ import { add } from '../src/commands/add.mjs';
 import { commitInstall, detectDrift, discoverSkills, locateSkill, prepareInstall } from '../src/install.mjs';
 import { readLock, writeLock } from '../src/lock.mjs';
 import { defaultManifest, writeManifest } from '../src/manifest.mjs';
+import { captureOutput } from './.capture-output.mjs';
 
 const GOOD = `---
 name: build
@@ -61,22 +62,6 @@ async function multiSkillSource(names) {
     await writeFile(join(skillDir, 'SKILL.md'), GOOD.replace('name: build', `name: ${name}`), 'utf8');
   }
   return dir;
-}
-
-/** Run a function while capturing everything it writes to stdout. */
-async function captureOutput(fn) {
-  const original = process.stdout.write.bind(process.stdout);
-  let output = '';
-  process.stdout.write = (chunk) => {
-    output += chunk;
-    return true;
-  };
-  try {
-    const result = await fn();
-    return { result, output };
-  } finally {
-    process.stdout.write = original;
-  }
 }
 
 const install = (root, spec) =>

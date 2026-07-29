@@ -94,9 +94,10 @@ confirmation and every later decision traced back.
 
 ### Step 2: select, all 23 sections
 
-Each section owns its template text and its predicate in one file, the same
-shape as a rule family in `src/standard/`, so text and applicability cannot
-drift apart.
+Each section owns its template text and its predicate in one file under
+`src/context/sections/`, the same shape as a rule family in `src/standard/`, so
+text and applicability cannot drift apart, and the registry is testable the way
+the standard is: pure functions over strings, no filesystem needed.
 
 | # | Section | Included when |
 |---|---|---|
@@ -125,36 +126,42 @@ drift apart.
 | 23 | Visual testing with browser agents | UI + browser tooling |
 | + | Definition of done, completion report, operating sequence | always |
 
-Twelve blocks are always present, fourteen are conditional. A CLI selects 12, a
-web application with a database around 17, a pipeline application all 26.
+Fourteen blocks are always present, fourteen are conditional. A CLI selects 14,
+a web application with a database 20, a pipeline application all 28.
 
 **Nothing is lost.** A section that does not apply is absent rather than filled
 with `Unknown`, and the run reports which sections were skipped and on what
 evidence.
 
-### Step 3: three tiers
+### Step 3: one flat file
 
-| Tier | Path | Loads |
-|---|---|---|
-| Spine | `AGENTS.md` | every session: role, product, stack, commands, skills, workflow, pointers |
-| Conditional | inside the spine | every session, when the profile detected it |
-| Detail | `.agents/context/*.md` | only when a task touches that area |
+`AGENTS.md` is a single file. No spine, no `.agents/context/` split, no
+pointers to follow.
 
-Sections 7 to 13, 16, and 18 to 20 are long and domain specific. They move to
-detail files the spine names, so a pipeline project keeps every rule without
-paying for it on turns that never touch the pipeline.
+A tiered split would cut the always loaded size further, but it costs a reader
+the ability to open one file and see the whole contract, and it makes every
+skill's "read AGENTS.md" instruction only partly true. One file is worth the
+tokens.
 
-Measured from a full 23 section template totalling 29,256 bytes across 28
-blocks:
+The saving therefore comes entirely from section selection, not from deferring
+anything to a second file. Measured from a full template totalling 29,256 bytes
+across 28 blocks:
 
-| Project shape | Blocks | Always loaded | Tokens per session |
-|---|---|---|---|
-| CLI or library | 12 | ~4 KB | ~1.0k |
-| Web application with a database | 17 | ~5 KB | ~1.3k |
-| Pipeline application | 26 | ~6 KB spine, ~23 KB on demand | ~1.5k |
+| Project shape | Blocks | Size | Tokens per session | Against a flat 23 section file |
+|---|---|---|---|---|
+| CLI or library | 14 | 13.1 KB | ~3.3k | 59% smaller |
+| Web application with a database | 20 | 19.9 KB | ~5.0k | 38% smaller |
+| Pipeline application | 28 | 29.3 KB | ~7.3k | 9% smaller |
 
-A flat 23 section file costs 32,121 bytes and roughly 8,030 tokens on every
-turn. The worst case here is an 81% reduction with no rule dropped.
+**State the cost honestly.** A pipeline application still pays roughly 7.3k
+tokens on every turn, because a project that genuinely needs 28 sections needs
+them in the file every skill reads. Section selection helps most where it should:
+a small project stops carrying rules about a pipeline it does not have.
+
+If that cost proves unacceptable in practice, the lever is shortening sections,
+not splitting the file. The budget mechanism already used for skills applies
+here: report the size on every generation, and treat growth as a reason to
+prune.
 
 ### Step 5: what the agent fills, and how
 
@@ -287,12 +294,14 @@ Adaptive, so the context file never competes with the installed skills:
 ## Acceptance criteria
 
 - [ ] A repository with no database, no background work, and no UI selects
-      exactly the 12 always blocks, and the output contains no `Unknown` from a
+      exactly the 14 always blocks, and the output contains no `Unknown` from a
       skipped section.
 - [ ] A repository with a database, background work, a UI, and browser tooling
-      selects all 26 blocks.
+      selects all 28 blocks.
 - [ ] Every profile signal reports the file that produced it.
-- [ ] The always loaded spine stays under 6 KB for every profile.
+- [ ] `AGENTS.md` is one file. The run writes no companion context directory.
+- [ ] Every generation reports the resulting size in bytes and an approximate
+      token count, so growth is visible.
 - [ ] Versions, commands, dependencies, and installed skills match the manifests
       and `skills.lock` exactly, with no model involvement.
 - [ ] An agent filled value whose citation does not resolve is emitted as
@@ -300,8 +309,8 @@ Adaptive, so the context file never competes with the installed skills:
 - [ ] An existing `AGENTS.md` is never modified; the run writes
       `AGENTS.generated.md` and prints a comparison.
 - [ ] Running twice on an unchanged repository produces byte identical output.
-- [ ] A repository with too little evidence produces a spine only file naming
-      which sections were skipped and why.
+- [ ] A repository with too little evidence produces an always blocks only file
+      naming which sections were skipped and why.
 - [ ] `/develop prompt <request>` writes `prompts/NNN-slug.md` and stops for
       approval before editing any file.
 - [ ] A bare `/develop <request>` writes no prompt file and does not pause,
@@ -333,8 +342,10 @@ Adaptive, so the context file never competes with the installed skills:
 ## Surfaces to build
 
 - A profiler returning signals with their evidence.
-- A section registry, one file per section, each owning text and predicate.
-- An assembler that selects, tiers, and pre-fills.
+- A section registry under `src/context/sections/`, one file per section, each
+  owning its text and its predicate.
+- An assembler that selects sections, orders them, and pre-fills every
+  deterministic field.
 - A brief writer listing open placeholders and where to look.
 - A citation verifier that downgrades what does not resolve.
 - A comparison writer for the existing file case.
@@ -344,12 +355,9 @@ Adaptive, so the context file never competes with the installed skills:
 
 ## Open questions
 
-- **Does the three tier split hold?** A reader used to one flat file now has a
-  spine plus `.agents/context/`. This is the most disruptive piece.
-- **Where does the section registry live**, in `src/` beside the standard, or in
-  data the audit skill reads? The first is testable the way the standard is, the
-  second is editable without a release.
 - **Does the template version move with `STANDARD_VERSION`** or carry its own?
+- **What is a sensible size ceiling for a generated `AGENTS.md`**, and should
+  breaching it be a warning or a refusal?
 - **Should `agentic init` offer to turn `promptFirst` on**, or is editing
   `skills.json` enough?
 

@@ -10,8 +10,10 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { add } from './commands/add.mjs';
+import { context as contextCommand } from './commands/context.mjs';
 import { init } from './commands/init.mjs';
 import { list } from './commands/list.mjs';
+import { profile as profileCommand } from './commands/profile.mjs';
 import { remove } from './commands/remove.mjs';
 import { tokens } from './commands/tokens.mjs';
 import { update } from './commands/update.mjs';
@@ -73,6 +75,8 @@ ${bold('COMMANDS')}
   list                      installed skills, drift, and anything that is wrong
   validate [path]           check skill sources against the standard
   tokens [file.jsonl]       where the tokens went in a real session
+  profile                   show what this project looks like, and the evidence
+  context                   plan an AGENTS.md, writing a draft and a brief
 
 ${bold('OPTIONS')}
   -t, -a, --target <id>     override targets (repeatable, or comma separated)
@@ -188,6 +192,10 @@ export async function main(argv) {
         project: flags.project ?? null,
         top: flags.top ?? null,
       });
+    case 'profile':
+      return profileCommand({ root });
+    case 'context':
+      return contextCommand({ root, plan: true });
     default:
       fail(`unknown command "${command}"`);
       line(dim('run agentic --help for the list'));

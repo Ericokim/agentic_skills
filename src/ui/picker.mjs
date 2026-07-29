@@ -12,7 +12,8 @@
 
 import readline from 'node:readline';
 
-import { bold, cyan, dim, ESC, symbol } from '../ui.mjs';
+import { bold, cyan, dim, ESC } from '../ui.mjs';
+import { frameActive, frameBar, frameItem, frameLine } from './frame.mjs';
 import { initialState, reduce, visible } from './picker-state.mjs';
 
 const HIDE_CURSOR = `${ESC}[?25l`;
@@ -45,29 +46,29 @@ function renderFrame(state, columns) {
   const items = visible(state);
   const lines = [];
 
-  lines.push(`${symbol.arrow} ${bold('Select skills to install')} ${dim(`(${state.items.length} found)`)}`);
-  lines.push(`  Search: ${state.search}`);
-  lines.push(`  ${dim(HINT)}`);
-  lines.push('');
+  lines.push(frameActive(bold('Select skills to install')));
+  lines.push(frameLine(`Search: ${state.search}`));
+  lines.push(frameLine(dim(HINT)));
+  lines.push(frameBar());
 
   if (items.length === 0) {
-    lines.push(`  ${dim('no skills match')}`);
+    lines.push(frameLine(dim('no skills match')));
   } else {
     items.forEach((item, index) => {
       const onCursor = index === state.cursor;
       const box = state.selected.has(item.name) ? '◉' : '○';
       const marker = onCursor ? cyan('❯') : ' ';
       const name = onCursor ? bold(item.name) : item.name;
-      lines.push(`${marker} ${box} ${name}`);
+      lines.push(frameItem(`${marker} ${box} ${name}`));
     });
   }
 
-  lines.push('');
-  lines.push(`  ${bold('Description')}`);
+  lines.push(frameBar());
+  lines.push(frameLine(bold('Description')));
   const current = items[Math.min(state.cursor, items.length - 1)];
   const wrapped = current ? wrap(current.description ?? '', Math.max(10, columns - 4)).slice(0, 3) : [];
-  if (wrapped.length === 0) lines.push(`  ${dim('(none)')}`);
-  for (const wrappedLine of wrapped) lines.push(`  ${dim(wrappedLine)}`);
+  if (wrapped.length === 0) lines.push(frameLine(dim('(none)')));
+  for (const wrappedLine of wrapped) lines.push(frameLine(dim(wrappedLine)));
 
   return lines;
 }

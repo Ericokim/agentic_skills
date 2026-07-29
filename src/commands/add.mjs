@@ -8,6 +8,7 @@ import { MANIFEST_FILE, readManifest, setSkill, writeManifest } from '../manifes
 import { parseSkill } from '../skill.mjs';
 import { parseSource } from '../source.mjs';
 import { bold, dim, line, reportViolations, symbol } from '../ui.mjs';
+import { frameBar, frameClose, frameOpen, frameStep } from '../ui/frame.mjs';
 import { pickSkills } from '../ui/picker.mjs';
 
 /**
@@ -127,7 +128,18 @@ export async function add({
   // `interactive` gets the safe, non-blocking default of false.
   if (found && found.length > 1 && !only && !name && !all && interactive) {
     const items = await skillDescriptions(found);
+
+    line(frameOpen('agentic'));
+    line(frameBar());
+    line(frameStep(`Source: ${spec}`));
+    line(frameBar());
+    line(frameStep('Repository cloned'));
+    line(frameBar());
+    line(frameStep(`Found ${found.length} ${found.length === 1 ? 'skill' : 'skills'}`));
+
     const chosen = await pickSkills(items);
+    line(frameClose());
+
     if (chosen === null || chosen.length === 0) {
       line(`${symbol.warn} cancelled: nothing installed`);
       return 0;

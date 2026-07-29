@@ -151,3 +151,31 @@ test('an all-off declaration passes every invariant', () => {
   assert.deepEqual(violations, []);
   assert.deepEqual(checkInvariants(declaration, skill), []);
 });
+
+// The standard's own prose has to obey the rules the standard enforces.
+// Injected text lands in every installed skill, so a rule we break here is a
+// rule we break in every skill we ship, which is worse than an author breaking
+// it once.
+
+import { validateAsset } from '../src/validate.mjs';
+
+test('every injected block passes the rules we enforce on authors', () => {
+  for (const family of FAMILIES) {
+    for (const level of family.levels.filter((l) => l !== 'off')) {
+      const violations = validateAsset(family.block(level));
+      assert.deepEqual(
+        violations,
+        [],
+        `${family.id}:${level} breaks a rule it enforces: ${violations.map((v) => v.rule).join(', ')}`,
+      );
+    }
+  }
+});
+
+test('no injected block contains an em dash or en dash', () => {
+  for (const family of FAMILIES) {
+    for (const level of family.levels.filter((l) => l !== 'off')) {
+      assert.doesNotMatch(family.block(level), /[—–]/, `${family.id}:${level} has a long dash`);
+    }
+  }
+});

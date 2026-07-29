@@ -13,11 +13,11 @@ Tag every factual claim you make about this codebase or this change with how you
 obtained it. An untagged claim is not a claim, it is a guess wearing a claim's
 clothes.
 
-- \`[O] Observed\` — you ran it and are quoting the result. Requires the exact
+- \`[O] Observed\`, you ran it and are quoting the result. Requires the exact
   command and its verbatim output. Paraphrased output is not Observed.
-- \`[D] Derived\` — you read the source and concluded it. Requires a
+- \`[D] Derived\`, you read the source and concluded it. Requires a
   \`file:line\` citation for every claim.
-- \`[A] Assumed\` — you inferred it and have not checked. Must be phrased as an
+- \`[A] Assumed\`, you inferred it and have not checked. Must be phrased as an
   assumption, never as a statement of fact.
 
 Never upgrade a tag. If you did not run it, it is not \`[O]\`, however confident

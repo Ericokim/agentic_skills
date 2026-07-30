@@ -412,14 +412,7 @@ npm run check     # all three, and what CI runs
 npm run tokens    # where the tokens went in your last session
 ```
 
-| Option | Applies to | Does |
-|---|---|---|
-| `--answers <file>` | `context` | A JSON file of cited answers to verify |
-| `--root <dir>` | all | Project root (default: working directory) |
-| `--top <n>` | `tokens` | Heaviest turns to show (default 12) |
-| `--project <dir>` | `tokens` | Encoded transcript directory to read |
-
-**Exit codes:** `0` success · `1` something is wrong · `2` bad usage. `agentic --help` is the complete reference.
+**Exit codes:** `0` success · `1` something is wrong · `2` bad usage. `agentic --help` lists every flag.
 
 The standard's own injected prose is held to the rules it enforces on authors, by a test over every family at every level: an author breaking a rule affects one skill, the standard breaking it affects every skill it ships.
 

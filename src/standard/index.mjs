@@ -11,9 +11,9 @@ import * as review from './review.mjs';
 import * as done from './done.mjs';
 
 /**
- * Bumped when injected prose or invariants change. Recorded in every lockfile
- * entry, so `agentic list` can tell an installed skill that predates a
- * standard change from one that is current.
+ * Bumped when injected prose or invariants change. Stamped into every skill's
+ * own marker, so what a skill was compiled against is readable in the file
+ * itself, and `build --check` fails until every block is regenerated.
  */
 export const STANDARD_VERSION = '1.0.0';
 

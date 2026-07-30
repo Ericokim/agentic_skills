@@ -1,11 +1,11 @@
 // Compiles a skill source into the self contained skill that gets installed.
 //
-// This is why the package manager exists. The alternative, which the tools we
-// mapped from all settle for, is asking authors to paste the shared discipline
-// blocks into every skill and then linting that the copies stay byte identical.
-// That is a build step performed by a linter. Here the author declares which
-// blocks they need and the compiler writes them, so the standard is defined
-// once and every installed skill still stands alone with no runtime dependency.
+// This is why this repo exists. The alternative, which the projects we mapped
+// from all settle for, is asking authors to paste the shared discipline blocks
+// into every skill and then linting that the copies stay byte identical. That is
+// a build step performed by a linter. Here the author declares which blocks they
+// need and the compiler writes them, so the standard is defined once and every
+// installed skill still stands alone with no runtime dependency.
 //
 // Pure: skill in, markdown out. Compiling is deterministic and idempotent.
 //

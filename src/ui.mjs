@@ -3,7 +3,7 @@
 // Colour is off when stdout is not a terminal and when NO_COLOR is set, so
 // piping into a file or a CI log produces clean text.
 
-export const ESC = '\x1b';
+const ESC = '\x1b';
 const enabled = process.stdout.isTTY && !process.env.NO_COLOR;
 
 const wrap = (open, close) => (text) =>
@@ -14,7 +14,6 @@ export const dim = wrap(2, 22);
 export const red = wrap(31, 39);
 export const green = wrap(32, 39);
 export const yellow = wrap(33, 39);
-export const cyan = wrap(36, 39);
 
 export const symbol = {
   ok: green('✓'),
@@ -49,12 +48,6 @@ process.stdout.on('error', (error) => {
 });
 
 /**
- * Test-only: put the module back to its initial state. outputClosed is
- * module level state shared by every test that imports ui.mjs, so without a
- * reset, one test setting it would silence writes in every test that runs
- * after it in the same process.
- */
-/**
  * Bytes as a human readable size.
  *
  * Here rather than in each command because it is a display format: three
@@ -62,10 +55,6 @@ process.stdout.on('error', (error) => {
  * have applied to whichever one the author was looking at.
  */
 export const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
-
-export function __resetOutputClosedForTest() {
-  outputClosed = false;
-}
 
 /** Write raw text to stdout, unless output has already closed. */
 function write(text) {

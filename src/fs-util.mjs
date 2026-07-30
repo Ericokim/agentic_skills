@@ -1,20 +1,11 @@
-// The filesystem questions this codebase asks constantly, in one place.
+// The filesystem questions this codebase asks repeatedly, in one place.
 //
-// The first two were written three times over (in fetch, init, and install)
-// before being pulled out. They look trivial, and the ENOTDIR case below is
-// exactly the kind of detail that gets fixed in one copy and not the others.
+// readIfPresent was written three times over before being pulled out, and the
+// ENOTDIR case below is exactly the kind of detail that gets fixed in one copy
+// and not the others. collectSkillAssets had two copies for the same reason.
 
-import { access, readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-
-export async function pathExists(path) {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Read a file, or null when there is nothing there to read.

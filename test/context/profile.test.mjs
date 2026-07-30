@@ -61,9 +61,9 @@ test('reads commands from package scripts', () => {
   assert.deepEqual(signals.commands.detail, { build: 'tsc', test: 'vitest run' });
 });
 
-test('reads workflow skills from the lockfile', () => {
+test('reads workflow skills from the skills CLI lockfile', () => {
   const { signals } = profile(snap({
-    'skills.lock': '{"develop":{"resolved":"x","sha":null,"standard":"1.0.0","files":{}}}',
+    'skills-lock.json': '{"version":1,"skills":{"develop":{"source":"x"}}}',
   }));
   assert.equal(signals.workflowSkills.present, true);
   assert.deepEqual(signals.workflowSkills.detail, ['develop']);
@@ -81,17 +81,28 @@ test('detects library skills from .agents/skills', () => {
   assert.deepEqual(signals.librarySkills.detail, ['scope']);
 });
 
-test('detects prompt first mode from skills.json', () => {
-  const { signals } = profile(snap({ 'skills.json': '{"promptFirst":true}' }));
+// Prompt first mode is opted into with a file you write yourself. It used to be
+// a key in skills.json, the manifest this project's own installer wrote. That
+// installer is gone, so nothing creates that file, and a name sitting next to
+// the skills CLI's skills-lock.json reads like its manifest when it is not.
+// agentic.json says whose setting it is, and you write it yourself.
+
+test('detects prompt first mode from agentic.json', () => {
+  const { signals } = profile(snap({ 'agentic.json': '{"promptFirst":true}' }));
   assert.equal(signals.promptFirst.present, true);
-  assert.deepEqual(signals.promptFirst.evidence, ['skills.json']);
+  assert.deepEqual(signals.promptFirst.evidence, ['agentic.json']);
 });
 
-test('does not detect prompt first mode when skills.json omits it or sets it false', () => {
-  const { signals: withoutField } = profile(snap({ 'skills.json': '{}' }));
+test('does not detect prompt first mode when the file omits it or sets it false', () => {
+  const { signals: withoutField } = profile(snap({ 'agentic.json': '{}' }));
   assert.equal(withoutField.promptFirst.present, false);
-  const { signals: explicitFalse } = profile(snap({ 'skills.json': '{"promptFirst":false}' }));
+  const { signals: explicitFalse } = profile(snap({ 'agentic.json': '{"promptFirst":false}' }));
   assert.equal(explicitFalse.promptFirst.present, false);
+});
+
+test('a malformed agentic.json is ignored rather than throwing', () => {
+  const { signals } = profile(snap({ 'agentic.json': '{ not json' }));
+  assert.equal(signals.promptFirst.present, false);
 });
 
 test('malformed json does not throw, it reports absent', () => {

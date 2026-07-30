@@ -232,24 +232,19 @@ export function profile(snapshot) {
     }
   }
 
-  // A lockfile names the workflow skills exactly, which beats guessing from
-  // directory names. Installation is rented from the skills CLI, so its
-  // skills-lock.json is the one that exists in practice; skills.lock is read
-  // too, because a project installed by this tool's earlier releases still has
-  // one and its skills did not stop existing.
-  const rented = parseJson(snapshot.files['skills-lock.json'] ?? '');
-  const legacy = parseJson(snapshot.files['skills.lock'] ?? '');
-  const installed = rented?.skills ?? legacy;
-  if (installed && typeof installed === 'object' && Object.keys(installed).length > 0) {
-    mark(signals.workflowSkills, rented?.skills ? 'skills-lock.json' : 'skills.lock');
-    signals.workflowSkills.detail = Object.keys(installed).sort();
+  // The skills CLI's lockfile names the installed skills exactly, which beats
+  // guessing from directory names.
+  const lock = parseJson(snapshot.files['skills-lock.json'] ?? '');
+  if (lock?.skills && Object.keys(lock.skills).length > 0) {
+    mark(signals.workflowSkills, 'skills-lock.json');
+    signals.workflowSkills.detail = Object.keys(lock.skills).sort();
   }
 
-  // Our own manifest names whether this project opted into prompt first mode.
-  const manifest = parseJson(snapshot.files['skills.json'] ?? '');
-  if (manifest && manifest.promptFirst === true) {
-    mark(signals.promptFirst, 'skills.json');
-  }
+  // Prompt first mode is opted into by writing agentic.json yourself. Nothing
+  // generates it: installing is rented, and the skills CLI has no opinion about
+  // this setting.
+  const config = parseJson(snapshot.files['agentic.json'] ?? '');
+  if (config?.promptFirst === true) mark(signals.promptFirst, 'agentic.json');
 
   // CI workflows are a second source for commands.
   for (const path of Object.keys(snapshot.files)) {

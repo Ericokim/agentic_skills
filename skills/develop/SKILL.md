@@ -91,10 +91,12 @@ exists so the decision is not silently lost.
 
 Off by default. A one line change should not cost an approval round trip.
 
-Turn it on for one request with a leading mode word, or for the project with
-`"promptFirst": true` in `skills.json`:
+Turn it on for one request with a leading mode word, or for the whole project by
+creating `agentic.json` in the repository root yourself, holding
+`{ "promptFirst": true }`. Nothing generates that file; if it is not there, the
+mode is off.
 
-- `/develop prompt <request>` runs this mode once.
+- `/develop prompt <request>` runs this mode once, with or without the file.
 - With the project setting on, a bare `/develop` runs this mode, and
   `/develop now <request>` skips it once.
 

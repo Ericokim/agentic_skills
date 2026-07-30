@@ -213,7 +213,7 @@ Builds the thing.
 
 **When you would use it.** You ask for a feature but never said which of two approaches to take. Rather than quietly picking one, `/develop` stops and sends you to `/architect` first. You can tell it to carry on anyway. If you do, it writes down the guess it made so it stays visible instead of getting buried in code.
 
-Adding the word `prompt` makes it write out its plan and wait for your approval before touching any code. Useful when you want to see the intent before the diff.
+Adding the word `prompt` makes it write out its plan and wait for your approval before touching any code. Useful when you want to see the intent before the diff. To make it the default, put `{ "promptFirst": true }` in an `agentic.json` at your project root.
 
 #### check
 

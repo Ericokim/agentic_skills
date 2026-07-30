@@ -34,8 +34,8 @@ const INTERESTING = [
   /^\.github\/workflows\/.+\.ya?ml$/,
   /^(README|CONTRIBUTING)\.md$/i,
   /^(AGENTS|CLAUDE)\.md$/,
-  /^skills\.(json|lock)$/,
   /^skills-lock\.json$/, // what the skills CLI writes, so the one that exists
+  /^agentic\.json$/, // this project's own settings, written by hand
   /^(tsconfig|next\.config|vite\.config|nuxt\.config|astro\.config)\.[a-z]+$/,
   /^\.env\.(example|sample)$/,
   /package\.json$/, // workspace manifests at any depth

@@ -6,7 +6,7 @@ import { compare } from '../context/compare.mjs';
 import { prefill } from '../context/prefill.mjs';
 import { profile as buildProfile } from '../context/profile.mjs';
 import { takeSnapshot } from '../context/snapshot.mjs';
-import { parseAnswers, verifyAnswers } from '../context/verify.mjs';
+import { verifyAnswers } from '../context/verify.mjs';
 import { readIfPresent } from '../fs-util.mjs';
 import { bold, dim, kb, line, symbol } from '../ui.mjs';
 
@@ -57,10 +57,10 @@ async function generate({ root, answersPath }) {
 
   let answers;
   try {
-    answers = parseAnswers(raw);
+    answers = JSON.parse(raw);
   } catch (error) {
-    line(`${symbol.fail} could not read the answers in ${answersPath}: ${error.message}`);
-    line(dim('  the brief lists the form: NAME: value, with an indented evidence line under it'));
+    line(`${symbol.fail} ${answersPath} is not valid JSON: ${error.message}`);
+    line(dim('  the brief shows the shape an answers file takes'));
     return 1;
   }
 
@@ -115,8 +115,8 @@ async function generate({ root, answersPath }) {
  *
  * Writes a draft and a brief. Never writes AGENTS.md, because a context file a
  * person curated is worth more than one a tool generated. Pass `answers`, a
- * path to an answers file in either form `parseAnswers` reads, to run phase 2
- * instead: verify those answers against the repository and write
+ * path to a JSON answers file shaped like `verifyAnswers` takes, to run phase
+ * 2 instead: verify those answers against the repository and write
  * AGENTS.generated.md.
  */
 export async function context({ root, plan = true, answers = null }) {
@@ -136,17 +136,13 @@ export async function context({ root, plan = true, answers = null }) {
     '# Generation brief',
     '',
     `${open.length} placeholders need an answer. Every answer must cite a file,`,
-    'because the CLI re-reads each citation and drops any value the file does not',
-    'contain. Write them either way:',
+    'because the CLI re-reads each citation and drops a value the file does not',
+    'contain. Write a JSON file shaped like this, then run',
+    '`agentic context --answers <your file>`:',
     '',
+    '```json',
+    '{ "PROJECT_NAME": { "value": "my service", "evidence": ["package.json:2"] } }',
     '```',
-    'PROJECT_NAME: my service',
-    '  evidence: package.json:2',
-    '```',
-    '',
-    'or as JSON, `{"PROJECT_NAME": {"value": "my service", "evidence": ["package.json:2"]}}`.',
-    '',
-    'Then run `agentic context --answers <your file>`.',
     '',
     ...open.map((item) => `- \`${item.name}\`  (section: ${item.section})`),
     '',

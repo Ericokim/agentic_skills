@@ -313,45 +313,6 @@ It writes `skills-lock.json`, recording the source and a hash per skill. Commit 
 
 Pin a release by adding a git ref to the source: `Ericokim/agentic_skills#v0.4.0`.
 
-### This repo's own commands
-
-`agentic` builds and checks the skills. It does not install them.
-
-| | Command | Does | Writes |
-|:--:|---|---|:--:|
-| 🔨 | `agentic build` | Regenerate the standard's blocks in `skills/` in place, refusing to write anything if a declaration fails | ✍️ |
-| 🚦 | `agentic build --check` | Report what a build would change without writing, non zero when stale | 👁️ |
-| ✅ | `agentic validate [path]` | Check skills against the standard | 👁️ |
-| 💰 | `agentic tokens [file]` | Where the tokens went in a real session | 👁️ |
-| 🔎 | `agentic profile` | Show what this project looks like, and the evidence | 👁️ |
-| 📄 | `agentic context` | Plan an AGENTS.md, writing a draft and a brief | ✍️ |
-| 📄 | `agentic context --answers <file>` | Verify cited answers and write `AGENTS.generated.md` | ✍️ |
-
-<sub>✍️ writes files · 👁️ read only</sub>
-
-| Option | Applies to | Does |
-|---|---|---|
-| `--answers <file>` | `context` | A JSON file of cited answers to verify |
-| `--root <dir>` | all | Project root (default: working directory) |
-| `--top <n>` | `tokens` | Heaviest turns to show (default 12) |
-| `--project <dir>` | `tokens` | Encoded transcript directory to read |
-
-**Exit codes:** `0` success · `1` something is wrong · `2` bad usage
-
-Run it without cloning:
-
-```bash
-npx -y github:Ericokim/agentic_skills profile
-```
-
-`agentic validate .claude/skills` over an **installed** directory does the sensible thing: an installed skill has had its declaration stripped, so it is checked against the rules that still apply once compiled (parse, name, budget, prose) and is not asked for a declaration that is deliberately gone.
-
-### Bundled files
-
-A skill can ship mode files and templates beside its `SKILL.md` and reference them by relative path. `agentic validate` checks those files too, because they reach an agent the same way the skill does, and `build` holds them to the same prose and size budgets.
-
----
-
 ## 📄 Generating project context
 
 Skills know how to work. `AGENTS.md` is how they learn about *your* project.
@@ -402,6 +363,10 @@ committed skill already carries the standard even for an installer that only
 copies. Conventions, budgets, and the full rule list:
 [`docs/authoring.md`](docs/authoring.md).
 
+`agentic validate .claude/skills` over an **installed** directory does the sensible thing: an installed skill has had its declaration stripped, so it is checked against the rules that still apply once compiled (parse, name, budget, prose) and is not asked for a declaration that is deliberately gone.
+
+A skill can ship mode files and templates beside its `SKILL.md` and reference them by relative path. `validate` checks those files too, because they reach an agent the same way the skill does, and `build` holds them to the same prose and size budgets.
+
 ---
 
 ## ❓ FAQ
@@ -446,6 +411,15 @@ npm run build     # regenerate the injected blocks in skills/, in place
 npm run check     # all three, and what CI runs
 npm run tokens    # where the tokens went in your last session
 ```
+
+| Option | Applies to | Does |
+|---|---|---|
+| `--answers <file>` | `context` | A JSON file of cited answers to verify |
+| `--root <dir>` | all | Project root (default: working directory) |
+| `--top <n>` | `tokens` | Heaviest turns to show (default 12) |
+| `--project <dir>` | `tokens` | Encoded transcript directory to read |
+
+**Exit codes:** `0` success · `1` something is wrong · `2` bad usage. `agentic --help` is the complete reference.
 
 The standard's own injected prose is held to the rules it enforces on authors, by a test over every family at every level: an author breaking a rule affects one skill, the standard breaking it affects every skill it ships.
 

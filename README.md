@@ -82,7 +82,9 @@ Validation runs before anything is written, so a failing skill never lands half 
 npx -y skills@latest add Ericokim/agentic_skills -a claude-code
 ```
 
-It copies `skills/` exactly as committed, and `skills/` is compiled output: `agentic build` writes the injected standard into it before every release, so a plain copier delivers the same compiled skill `agentic add` does. What a plain copier cannot do is refuse. `agentic build` checks every skill's declaration for coherence and writes nothing to `skills/` when one fails, so an incoherent skill never reaches a directory any installer, this one or a third party's, would copy from. The check moved from install time to publish time; it did not disappear.
+It copies `skills/` exactly as committed, and the committed skill already carries the standard: `agentic build` writes the injected blocks into it before every release, so a plain copier delivers the same rules `agentic add` does. It carries one extra frontmatter key, the `standard:` declaration that `agentic add` strips, which agents ignore.
+
+What a plain copier cannot do is refuse. `agentic build` checks every skill's declaration for coherence and writes nothing when one fails, so an incoherent skill never reaches a directory any installer, this one or a third party's, would copy from. The check moved from install time to publish time; it did not disappear.
 
 ---
 

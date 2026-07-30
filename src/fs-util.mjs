@@ -1,10 +1,11 @@
-// Two filesystem questions this codebase asks constantly, in one place.
+// The filesystem questions this codebase asks constantly, in one place.
 //
-// Both were written three times over (in fetch, init, and install) before being
-// pulled out. They look trivial, and the ENOTDIR case below is exactly the kind
-// of detail that gets fixed in one copy and not the others.
+// The first two were written three times over (in fetch, init, and install)
+// before being pulled out. They look trivial, and the ENOTDIR case below is
+// exactly the kind of detail that gets fixed in one copy and not the others.
 
-import { access, readFile } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 export async function pathExists(path) {
   try {
@@ -33,4 +34,42 @@ export async function readIfPresent(path) {
     if (['ENOENT', 'ENOTDIR', 'EACCES', 'EISDIR'].includes(error.code)) return null;
     throw error;
   }
+}
+
+/**
+ * Every file that ships beside a skill's SKILL.md, path relative to the skill's
+ * own directory, sorted so a plan is deterministic.
+ *
+ * What counts as a bundled file is a packaging rule, not a detail of one
+ * caller: dotfiles are skipped so a stray .DS_Store never installs, and the
+ * top level SKILL.md is skipped because it is the skill itself rather than
+ * something shipped beside it. `install` and `build` both need that rule and
+ * had a copy each, identical but for a variable name. They walk different
+ * roots (a fetched source there, skills/<name> here) and want different things
+ * per file (contents there, a path here), which is what kept them apart; the
+ * walk itself was never the part that differed, so it lives here and the
+ * callers do their own mapping.
+ */
+export async function collectSkillAssets(dir) {
+  const assets = [];
+  const walk = async (current, prefix) => {
+    let entries;
+    try {
+      entries = await readdir(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        await walk(join(current, entry.name), relative);
+        continue;
+      }
+      if (entry.name === 'SKILL.md' && !prefix) continue;
+      assets.push({ relative, path: join(current, entry.name) });
+    }
+  };
+  await walk(dir, '');
+  return assets.sort((a, b) => a.relative.localeCompare(b.relative));
 }

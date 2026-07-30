@@ -8,9 +8,8 @@ import { profile as buildProfile } from '../context/profile.mjs';
 import { takeSnapshot } from '../context/snapshot.mjs';
 import { verifyAnswers } from '../context/verify.mjs';
 import { readIfPresent } from '../fs-util.mjs';
-import { bold, dim, line, symbol } from '../ui.mjs';
+import { bold, dim, kb, line, symbol } from '../ui.mjs';
 
-const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
 const tokenEstimate = (bytes) => Math.round(bytes / 4 / 100) / 10;
 const sizeReport = (bytes) => `${bytes} bytes, ${kb(bytes)}, ~${tokenEstimate(bytes)}k tokens`;
 

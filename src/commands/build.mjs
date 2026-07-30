@@ -22,45 +22,12 @@ import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
 import { compileInPlace } from '../compile.mjs';
-import { readIfPresent } from '../fs-util.mjs';
+import { collectSkillAssets, readIfPresent } from '../fs-util.mjs';
 import { parseSkill } from '../skill.mjs';
-import { bold, dim, line, reportViolations, symbol } from '../ui.mjs';
+import { bold, dim, kb, line, reportViolations, symbol } from '../ui.mjs';
 import { validateAsset, validateSkill } from '../validate.mjs';
 
-export const SKILLS_DIR = 'skills';
-
-const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
-
-/**
- * Every file that ships beside a skill's SKILL.md, with its path relative to
- * the skill's own directory - the same shape install.mjs's collectAssets
- * produces, kept as its own copy here because the two walk different roots
- * (a fetched source directory there, skills/<name> here) for reasons that do
- * not share code cleanly.
- */
-async function collectAssets(dir) {
-  const assets = [];
-  const walk = async (current, prefix) => {
-    let entries;
-    try {
-      entries = await readdir(current, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue;
-      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        await walk(join(current, entry.name), rel);
-        continue;
-      }
-      if (entry.name === 'SKILL.md' && !prefix) continue;
-      assets.push({ relative: rel, path: join(current, entry.name) });
-    }
-  };
-  await walk(dir, '');
-  return assets.sort((a, b) => a.relative.localeCompare(b.relative));
-}
+const SKILLS_DIR = 'skills';
 
 /** Every skill under skills/, sorted by name. */
 async function readSkills(skillsRoot) {
@@ -76,7 +43,7 @@ async function readSkills(skillsRoot) {
     const dir = join(skillsRoot, entry.name);
     const raw = await readIfPresent(join(dir, 'SKILL.md'));
     if (raw === null) continue;
-    skills.push({ name: entry.name, dir, raw, assets: await collectAssets(dir) });
+    skills.push({ name: entry.name, dir, raw, assets: await collectSkillAssets(dir) });
   }
   return skills.sort((a, b) => a.name.localeCompare(b.name));
 }

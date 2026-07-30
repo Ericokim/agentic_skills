@@ -20,10 +20,10 @@ import readline from 'node:readline';
 
 import { ESC } from '../ui.mjs';
 
-export const HIDE_CURSOR = `${ESC}[?25l`;
-export const SHOW_CURSOR = `${ESC}[?25h`;
-export const CLEAR_LINE = `${ESC}[2K`;
-export const cursorUp = (n) => `${ESC}[${n}A`;
+const HIDE_CURSOR = `${ESC}[?25l`;
+const SHOW_CURSOR = `${ESC}[?25h`;
+const CLEAR_LINE = `${ESC}[2K`;
+const cursorUp = (n) => `${ESC}[${n}A`;
 
 /**
  * Run an interactive terminal prompt to completion.

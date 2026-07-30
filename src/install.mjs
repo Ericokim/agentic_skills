@@ -16,7 +16,7 @@ import { dirname, join, relative } from 'node:path';
 
 import { compile } from './compile.mjs';
 import { resolveSource } from './fetch.mjs';
-import { pathExists, readIfPresent } from './fs-util.mjs';
+import { collectSkillAssets, pathExists, readIfPresent } from './fs-util.mjs';
 import { fileHashes, integrity, lockEntry } from './lock.mjs';
 import { parseSkill } from './skill.mjs';
 import { parseSource } from './source.mjs';
@@ -24,7 +24,7 @@ import { STANDARD_VERSION } from './standard/index.mjs';
 import { planEmit, targetById } from './targets/index.mjs';
 import { declaresStandard, validateAsset, validateCompiled, validateSkill } from './validate.mjs';
 
-export class InstallError extends Error {
+class InstallError extends Error {
   constructor(message) {
     super(message);
     this.name = 'InstallError';
@@ -102,30 +102,20 @@ export async function locateSkill(dir, name) {
  * arrive with it. Installing the SKILL.md alone produces a skill that tells the
  * agent to read a file that is not there, and nothing errors: the agent just
  * improvises, which is the failure mode this project exists to prevent.
+ *
+ * Reads eagerly, because planning an install needs the bytes: a bundled file
+ * that has to be validated and hashed before anything is written cannot be a
+ * path to read later. One that disappears between the walk and the read is
+ * treated as absent rather than fatal, the same as any other unreadable path.
  */
 async function collectAssets(dir) {
+  const found = await collectSkillAssets(dir);
   const assets = [];
-  const walk = async (current, prefix) => {
-    let entries;
-    try {
-      entries = await readdir(current, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue;
-      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        await walk(join(current, entry.name), relative);
-        continue;
-      }
-      if (entry.name === 'SKILL.md' && !prefix) continue;
-      const contents = await readIfPresent(join(current, entry.name));
-      if (contents !== null) assets.push({ relative, contents });
-    }
-  };
-  await walk(dir, '');
-  return assets.sort((a, b) => a.relative.localeCompare(b.relative));
+  for (const asset of found) {
+    const contents = await readIfPresent(asset.path);
+    if (contents !== null) assets.push({ relative: asset.relative, contents });
+  }
+  return assets;
 }
 
 /**
@@ -226,7 +216,7 @@ export async function prepareInstall({ root, name, spec, targets, cacheDir, cwd 
 // one directory per skill, written once, that every selected target's
 // install path then points at instead of holding its own copy of the same
 // bytes.
-export const CANONICAL_DIR = '.agentic/skills';
+const CANONICAL_DIR = '.agentic/skills';
 
 export function canonicalDir(root, name) {
   return join(root, CANONICAL_DIR, name);

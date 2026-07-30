@@ -65,7 +65,7 @@ const short = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(Math.roun
 const pad = (text, width) => String(text).padStart(width);
 
 /** Parse one transcript into main, subagent, and per turn totals. */
-export function readTranscript(contents) {
+function readTranscript(contents) {
   const main = empty();
   const sub = empty();
   const turns = [];

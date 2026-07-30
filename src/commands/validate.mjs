@@ -4,7 +4,7 @@ import { basename, dirname, join, relative } from 'node:path';
 import { compile } from '../compile.mjs';
 import { parseSkill } from '../skill.mjs';
 import { STANDARD_VERSION } from '../standard/index.mjs';
-import { bold, dim, line, reportViolations, symbol, yellow } from '../ui.mjs';
+import { bold, dim, kb, line, reportViolations, symbol, yellow } from '../ui.mjs';
 import {
   BUDGETS,
   declaresStandard,
@@ -43,8 +43,6 @@ async function findMarkdown(target) {
   await walk(target);
   return { skills: skills.sort(), assets: assets.sort() };
 }
-
-const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
 
 /**
  * What this skill will cost in context once installed.

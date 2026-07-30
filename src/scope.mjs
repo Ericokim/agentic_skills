@@ -15,7 +15,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export const GLOBAL_MANIFEST_DIR = '.agentic';
+const GLOBAL_MANIFEST_DIR = '.agentic';
 
 /**
  * @param {{scope: 'project'|'global', projectRoot: string, home?: string}} input

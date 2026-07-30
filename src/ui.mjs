@@ -54,6 +54,15 @@ process.stdout.on('error', (error) => {
  * reset, one test setting it would silence writes in every test that runs
  * after it in the same process.
  */
+/**
+ * Bytes as a human readable size.
+ *
+ * Here rather than in each command because it is a display format: three
+ * commands print sizes and had a copy each, so a change to the precision would
+ * have applied to whichever one the author was looking at.
+ */
+export const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
+
 export function __resetOutputClosedForTest() {
   outputClosed = false;
 }

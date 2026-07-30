@@ -92,10 +92,12 @@ pointer. Writes nothing else. `/sync` keeps these current afterwards.
 This is a two phase flow, and the second phase is where the CLI, not this
 skill, decides whether an answer stands.
 
-1. Run `agentic context` if the command exists. It profiles the repository,
-   selects the sections this project needs, pre-fills every fact the repo
-   already states, and writes `AGENTS.draft.md` plus `AGENTS.brief.md`.
-   If the command is missing, do the same work by hand and say so in the report.
+1. Run `npx -y github:Ericokim/agentic_skills context`. Installing these skills
+   does not install that command, so reach it with `npx` rather than assuming
+   it is on the path. It profiles the repository, selects the sections this
+   project needs, pre-fills every fact the repo already states, and writes
+   `AGENTS.draft.md` plus `AGENTS.brief.md`. If it cannot run at all, do the
+   same work by hand and say so in the report.
 2. Read `AGENTS.brief.md`. It lists every placeholder that still needs an
    answer and names the section each belongs to.
 3. Answer each one from evidence, as a JSON object shaped exactly like this,
@@ -116,11 +118,11 @@ skill, decides whether an answer stands.
 4. Run the project's build and test commands, and record whether they currently
    pass. A command written down that does not run is worse than no command,
    because every later skill will try it.
-5. Run `agentic context --answers answers.json`. The CLI does not take any
-   answer's word for it: it re-reads every citation itself, and a value
-   survives only when the file it names still contains it. Never write
-   `AGENTS.md` directly, and never hand edit `AGENTS.generated.md` to restore
-   a value the CLI rejected.
+5. Run `npx -y github:Ericokim/agentic_skills context --answers answers.json`.
+   The CLI does not take any answer's word for it: it re-reads every citation
+   itself, and a value survives only when the file it names still contains it.
+   Never write `AGENTS.md` directly, and never hand edit `AGENTS.generated.md`
+   to restore a value the CLI rejected.
 6. Read the CLI's report in full. A field it downgraded to `Unknown` means the
    claim could not be backed by its citation: re-answer that field with a
    better citation, or leave it `Unknown` for a person to close. Do not report

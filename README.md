@@ -356,10 +356,18 @@ A skill can ship mode files and templates beside its `SKILL.md` and reference th
 
 Skills know how to work. `AGENTS.md` is how they learn about *your* project.
 
+Run `/audit` and your agent does this for you. To drive it yourself, reach the CLI with `npx`, since installing the skills does not put it on your path:
+
 ```bash
-agentic profile                     # what was detected, and the file that proved it
-agentic context                     # plan an AGENTS.md: draft plus a brief of what is missing
-agentic context --answers <file>    # verify cited answers, write AGENTS.generated.md
+npx -y github:Ericokim/agentic_skills profile
+```
+
+```bash
+npx -y github:Ericokim/agentic_skills context
+```
+
+```bash
+npx -y github:Ericokim/agentic_skills context --answers <file>
 ```
 
 Sections are chosen from evidence, so a library gets 14 blocks and a pipeline application gets 28; a section that does not apply is absent rather than filled with `Unknown`.

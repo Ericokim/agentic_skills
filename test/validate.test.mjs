@@ -294,3 +294,58 @@ test('every skill under skills/ passes the source rules, and compiles to somethi
     );
   }
 });
+
+// allowed-tools is a convention this repo follows, not a format requirement:
+// the skills CLI never mentions it. Demanding it from a source authored against
+// this standard is fair, because declaring what a skill may reach is a choice
+// the standard asks authors to make. Demanding it from an already installed
+// third party skill is not: it made `agentic validate .agents/skills` exit 1 on
+// a working project over nine files this tool did not write and does not own.
+
+const noTools = (name = 'build') => `---
+name: ${name}
+description: Reviews the existing API.
+---
+
+<!-- agentic:standard 1.0.0 -->
+
+## Evidence classification
+
+Tag every claim.
+
+<!-- /agentic:standard -->
+
+## What this skill does
+
+Reviews.
+`;
+
+test('an installed skill missing allowed-tools is a warning, not an error', () => {
+  const violations = validateCompiled(noTools(), { dirname: 'build' });
+  const tools = violations.filter((v) => /allowed-tools/.test(v.message));
+  assert.equal(tools.length, 1, 'it should still be mentioned');
+  assert.equal(tools[0].severity, 'warning');
+  assert.equal(
+    violations.filter((v) => v.severity === 'error').length,
+    0,
+    'a third party skill this tool did not write must not fail the run',
+  );
+});
+
+test('an installed skill missing a name or description is still an error', () => {
+  const noName = validateCompiled(noTools().replace('name: build\n', ''), { dirname: 'build' });
+  assert.ok(noName.some((v) => v.severity === 'error' && /name/.test(v.message)));
+
+  const noDesc = validateCompiled(noTools().replace(/^description:.*$/m, ''), { dirname: 'build' });
+  assert.ok(noDesc.some((v) => v.severity === 'error' && /description/.test(v.message)));
+});
+
+test('a source missing allowed-tools is still an error, because the standard asks for it', () => {
+  const violations = validateSkill(
+    `---\nname: build\ndescription: Builds.\nstandard:\n  evidence: off\n  anti-hallucination: off\n  tdd: off\n  review: off\n  done: off\n---\n\n## Do\n\nThings.\n`,
+    { dirname: 'build' },
+  );
+  const tools = violations.filter((v) => /allowed-tools/.test(v.message));
+  assert.equal(tools.length, 1);
+  assert.equal(tools[0].severity, 'error');
+});

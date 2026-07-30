@@ -316,7 +316,7 @@ Your `AGENTS.md` is never overwritten: the run writes `AGENTS.generated.md` and 
 ## ✍️ Authoring a skill
 
 ```bash
-agentic validate skills/         # the same code path add runs
+agentic validate skills/         # the same checks build runs
 agentic build                    # regenerate the standard blocks in place, refusing on a violation
 agentic build --check            # fail if a block is stale, what CI runs
 ```

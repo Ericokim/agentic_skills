@@ -63,8 +63,9 @@ function contextCost(raw) {
 /**
  * Validate skill sources without installing anything.
  *
- * The authoring loop and the CI gate, and the same code path `add` runs, so a
- * green validate means installable.
+ * The authoring loop and the CI gate, and the same code path `build` runs, so a
+ * green validate means publishable: the standard's blocks can be injected and
+ * the declaration holds together.
  */
 export async function validate({ root, target }) {
   let found;
@@ -140,7 +141,7 @@ export async function validate({ root, target }) {
 
   if (failed > 0) {
     line(`${symbol.fail} ${summary}, ${bold(String(failed))} failing`);
-    line(dim('  a failing skill cannot be installed, so fix it here, not at install time'));
+    line(dim('  a failing skill is never published, so fix it here rather than after release'));
     return 1;
   }
 

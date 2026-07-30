@@ -25,19 +25,46 @@ export const BUDGETS = {
   assetBytes: 8_000, // a bundled file loads whenever the skill reads it
 };
 
-const REQUIRED_FRONTMATTER = ['name', 'description', 'allowed-tools'];
+/**
+ * Frontmatter every skill needs, and how hard to insist.
+ *
+ * `name` and `description` are structural: an agent addresses a skill by name
+ * and chooses it by description, so a skill without them does not work.
+ *
+ * `allowed-tools` is this standard's convention, not the format's. The skills
+ * CLI never mentions it, and a skill without it simply reaches every tool.
+ * Insisting on it from a source authored here is fair, because declaring what a
+ * skill may reach is a choice the standard asks authors to make. Insisting on it
+ * from an already installed third party skill is not: it made
+ * `agentic validate .agents/skills` exit 1 over nine files this tool did not
+ * write and does not own.
+ */
+const REQUIRED_FRONTMATTER = ['name', 'description'];
+const CONVENTIONAL_FRONTMATTER = ['allowed-tools'];
 
 const violation = (rule, message, severity = 'error') => ({ rule, severity, message });
 
 /** Rules that read only the frontmatter. */
-function checkFrontmatter(skill, dirname) {
+function checkFrontmatter(skill, dirname, { conventionsAreErrors = true } = {}) {
   const out = [];
   const { frontmatter } = skill;
 
+  const missing = (key) => !frontmatter[key] || String(frontmatter[key]).trim() === '';
+
   for (const key of REQUIRED_FRONTMATTER) {
-    if (!frontmatter[key] || String(frontmatter[key]).trim() === '') {
-      out.push(violation('frontmatter-required', `frontmatter is missing "${key}"`));
-    }
+    if (missing(key)) out.push(violation('frontmatter-required', `frontmatter is missing "${key}"`));
+  }
+  for (const key of CONVENTIONAL_FRONTMATTER) {
+    if (!missing(key)) continue;
+    out.push(
+      conventionsAreErrors
+        ? violation('frontmatter-required', `frontmatter is missing "${key}"`)
+        : violation(
+            'frontmatter-convention',
+            `frontmatter is missing "${key}", so this skill reaches every tool the agent has`,
+            'warning',
+          ),
+    );
   }
 
   const name = frontmatter.name;
@@ -179,7 +206,7 @@ export function validateCompiled(raw, { dirname = null } = {}) {
     throw error;
   }
   return [
-    ...checkFrontmatter(skill, dirname),
+    ...checkFrontmatter(skill, dirname, { conventionsAreErrors: false }),
     ...checkProse(skill.body, raw, BUDGETS.skillBytes + BUDGETS.assetBytes),
   ];
 }

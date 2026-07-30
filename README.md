@@ -143,86 +143,151 @@ State lives in files (a scope, specs, AGENTS.md, tests), not in a chat session, 
 | 🐛 | [`debug`](#debug) | Any time | Finds the root cause and makes the minimal fix | the fix |
 
 <details open>
-<summary><b>Usage and a use case for each</b></summary>
+<summary><b>What each one does, and when you would reach for it</b></summary>
+
+**These work on any kind of project, in any language.** Nothing here assumes a
+web app, or JavaScript, or a particular framework. A Python data pipeline, a Rust
+command line tool, a Go service, an Android app, a Terraform module, a C library:
+the skills read whatever your project actually contains and use your own build and
+test commands. Where an example below names something concrete, swap in whatever
+you are building.
+
+You type these into your agent's chat box, the same way you would type a
+question. Some take extra words after the name; the rest work on their own.
 
 #### scope
 
+Keeps a running list of what to build, in order.
+
 ```bash
-/scope a tool that turns podcast episodes into searchable transcripts
-/scope                # bare: reconcile status from the repo, queue what is next
+/scope a command line tool that converts CSV files to Parquet
 ```
 
-> **Use case.** You shipped two features last week and cannot remember what is next. A bare `/scope` reads the repo, marks what actually landed, and tells you the next slice. It sets status from code, so a feature marked `in-progress` with nothing written gets moved back to `queued`.
+```bash
+/scope
+```
+
+**When you would use it.** It is Monday and you cannot remember where you left off. Type `/scope` on its own. It reads your project, ticks off what you actually finished, and tells you what to start next. If the list claims something is half built but there is no code for it, the list is wrong and it gets corrected.
+
+Works the same for a library, an app, a service, or a script. The list is coarse on purpose: outcomes, not tasks.
 
 #### audit
 
+Writes down the true facts about your project so the agent stops guessing.
+
 ```bash
-/audit                # whole repo
-/audit src/auth       # one area, gets its own nested AGENTS.md
+/audit
 ```
 
-> **Use case.** You inherited a codebase and the agent keeps guessing the test command wrong. `/audit` reads the manifests and CI config, runs the build and test commands to check they work, and writes down what is actually true. Anything it could not verify is recorded as unknown rather than guessed.
+```bash
+/audit packages/core
+```
+
+**When you would use it.** You joined a project and the agent keeps running the wrong test command. `/audit` reads whatever declares your dependencies and commands, whether that is `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, a `Makefile`, or your CI config. Then it actually runs the build and test commands to see whether they work. What it finds goes into a file called `AGENTS.md`, which every other skill reads. Anything it could not check is written down as unknown rather than guessed.
+
+Give it a subfolder and it writes a separate `AGENTS.md` for just that part, which is what you want in a monorepo where each package has its own commands.
 
 #### architect
 
+Helps you make one big decision, then writes it down.
+
 ```bash
-/architect how should sessions be stored
+/architect should this run as one service or several
 ```
 
-> **Use case.** You are about to build auth and have not decided between JWTs and server sessions. `/architect` asks one question at a time, recommends an answer with its reason, and writes `docs/specs/`. The decision survives the chat that produced it.
+**When you would use it.** You are about to build something and there is a fork in the road you have not settled: two libraries, two data shapes, two ways to deploy, sync or async. `/architect` asks you one question at a time and recommends an answer with its reasoning. The decision goes into a file. Next week you can see what you chose and why. Chat history disappears; the file does not.
+
+Use it for any choice that would be expensive to reverse. Skip it for choices that are cheap to change your mind about.
 
 #### develop
 
+Builds the thing.
+
 ```bash
-/develop the transcript search page
-/develop prompt add rate limiting to the login route   # write a prompt, wait for approval
+/develop the CSV parser
 ```
 
-> **Use case.** You ask for a checkout flow but never decided which payment provider. `/develop` stops at the spec gate and routes you to `/architect` instead of quietly picking Stripe. You can override, and the assumption gets recorded as an `Assumed` spec rather than lost.
+```bash
+/develop prompt add retries to the upload step
+```
+
+**When you would use it.** You ask for a feature but never said which of two approaches to take. Rather than quietly picking one, `/develop` stops and sends you to `/architect` first. You can tell it to carry on anyway. If you do, it writes down the guess it made so it stays visible instead of getting buried in code.
+
+Adding the word `prompt` makes it write out its plan and wait for your approval before touching any code. Useful when you want to see the intent before the diff.
 
 #### check
 
+Confirms the work actually works.
+
 ```bash
-/check verify         # drive the real app against the spec
-/check review          # a fresh reader on the diff
-/check                 # asks which, never guesses
+/check verify
 ```
 
-> **Use case.** Your tests are green but you have not seen the feature work. `/check verify` starts the app and drives every acceptance criterion through the real interface. Green tests prove assertions hold; they do not prove a specced page was ever built.
+```bash
+/check review
+```
+
+```bash
+/check
+```
+
+**When you would use it.** Your tests pass but you have never seen the thing run. `/check verify` starts your project using the command in `AGENTS.md` and drives the change through whichever interface it actually has: a page, an endpoint, or a command. It records the input it gave and the output it got. Passing tests only prove the tests pass. They cannot prove a feature was ever built.
+
+`/check review` is a different job: it hands your changes to a fresh reader who reports problems and never edits anything. Typing `/check` on its own asks which one you want.
 
 #### test
 
+Writes tests for what you just changed.
+
 ```bash
-/test                 # targets uncommitted changes
-/test src/search       # or a path
+/test
 ```
 
-> **Use case.** You just fixed a parser and want tests that would actually catch the regression. `/test` picks a strategy per file (happy path, boundaries, error states, accessibility) and runs the full suite, not only the new tests.
+```bash
+/test src/parser
+```
+
+**When you would use it.** You fixed a bug and want a test that would catch it coming back. `/test` uses your project's existing test runner and follows the conventions already in your test files, so the new tests look like the ones you have. For each file it picks what is worth testing: the normal case, the edges, what happens on bad input, and for anything with a user interface, whether it works with a keyboard and a screen reader.
+
+Then it runs your whole suite, not only the new tests, because new tests can break old ones.
 
 #### document
 
+Writes the prose a person will read.
+
 ```bash
 /document pr
-/document changelog | release-note | postmortem
 ```
 
-> **Use case.** You need a PR body and the branch has 14 commits with unhelpful messages. `/document pr` reads the diff rather than the commit log, and says what changed, how it was verified, and what was deliberately left out.
+```bash
+/document changelog
+```
+
+**When you would use it.** You need a pull request description and your branch has fourteen commits with messages like "fix" and "wip". `/document pr` ignores the commit messages and reads the actual changes, then says what changed, how it was checked, and what you left out on purpose. It also writes changelogs, release notes, and postmortems.
+
+Nothing here is language specific: it reads the diff, not the code's syntax.
 
 #### sync
 
+Tidies up the shared files at the end.
+
 ```bash
-/sync                  # the last step, around merge
+/sync
 ```
 
-> **Use case.** Your change moved a directory and added a dependency, so AGENTS.md is now subtly wrong for everyone. `/sync` adds the lines that are missing and rewrites only single lines it owns. It never touches prose a person wrote.
+**When you would use it.** Your change moved a folder and added a dependency, so the `AGENTS.md` your teammates rely on is now slightly wrong. `/sync` fills in the missing lines and corrects the ones it owns. It will not rewrite anything a person wrote by hand, and where it disagrees with your prose it tells you rather than deciding for you.
+
+Run it around the time you merge, whatever your branching model is.
 
 #### debug
 
+Finds out why something is broken.
+
 ```bash
-/debug the search endpoint returns 500 on empty query
+/debug the importer silently drops rows longer than 4KB
 ```
 
-> **Use case.** A test fails for a reason nobody understands. `/debug` runs a reproduce, localize, hypothesize, test, fix, verify loop, one hypothesis at a time, then pins the fix with a regression test checked in both directions.
+**When you would use it.** Something fails and nobody knows why. A failing test, a crash, a wrong number, a job that hangs. `/debug` works through it in order: make it happen on demand, narrow down where it happens, guess a cause, test that one guess, fix it, confirm the fix. One guess at a time, so you end up knowing the reason rather than having changed five things at once. Then it writes a test that fails without the fix and passes with it.
 
 </details>
 

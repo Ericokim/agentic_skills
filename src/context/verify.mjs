@@ -6,6 +6,63 @@
 // it. What this cannot catch is a plausible but wrong summary, and nothing
 // mechanical can, which is why the output is always shown as a diff.
 
+/**
+ * Read an answers file in either form the project offers.
+ *
+ * Two: `NAME: value` with indented `evidence:` lines under it, and the JSON
+ * object `verifyAnswers` consumes. Both exist because the brief this feature
+ * prints documented the text form while the command only ever ran JSON.parse, so
+ * following the printed instructions produced "not valid JSON". The half of a
+ * feature a person reads has to be the half that works.
+ *
+ * The text form is also the easier one for a model to emit: no escaping, no
+ * trailing comma to get wrong, and a citation per line.
+ *
+ * @param {string} raw contents of the answers file
+ * @returns {Record<string, {value: string, evidence: string[]}>}
+ */
+export function parseAnswers(raw) {
+  const text = raw.trim();
+  if (text.startsWith('{')) return JSON.parse(text);
+
+  const answers = {};
+  let current = null;
+
+  for (const line of text.split('\n')) {
+    if (!line.trim() || line.trim().startsWith('#')) continue;
+
+    // An evidence line belongs to the answer above it. With no answer above it
+    // the file is malformed, and saying so beats falling through to the NAME
+    // branch, which used to invent a placeholder called "evidence" that then
+    // failed verification for a reason pointing nowhere near the real mistake.
+    const evidence = /^\s*evidence:\s*(.+)$/.exec(line);
+    if (evidence) {
+      if (!current) {
+        throw new Error(
+          `"${line.trim()}" belongs under an answer, so put a NAME: value line above it`,
+        );
+      }
+      answers[current].evidence.push(evidence[1].trim());
+      continue;
+    }
+
+    // NAME: value. Split on the first colon only, so a value may contain more.
+    const at = line.indexOf(':');
+    if (at === -1) {
+      throw new Error(
+        `cannot read "${line.trim()}": an answer is written as NAME: value, with an indented "evidence: path:line" under it`,
+      );
+    }
+    current = line.slice(0, at).trim();
+    answers[current] = { value: line.slice(at + 1).trim(), evidence: [] };
+  }
+
+  if (Object.keys(answers).length === 0) {
+    throw new Error('no answers found: write each one as NAME: value with an indented evidence line');
+  }
+  return answers;
+}
+
 /** `path`, `path:12`, or `path:12-40`. */
 function parseCitation(citation) {
   const match = /^(.*?)(?::(\d+)(?:-(\d+))?)?$/.exec(citation.trim());

@@ -3,7 +3,7 @@
 // check it.
 //
 // Installing is not here on purpose. The skills CLI already resolves a git
-// source, prompts through the four step wizard, knows the paths of sixty four
+// source, prompts through the four step wizard, knows the paths of seventy five
 // agent tools, and writes skills-lock.json. Reimplementing that was two
 // thousand lines to be worse at it, and it cannot be imported either: the
 // package publishes a bin and no main, so wrapping it would mean shelling out

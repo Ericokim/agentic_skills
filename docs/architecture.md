@@ -5,7 +5,7 @@ For contributors. Why the code is shaped this way, and where to add things.
 ## What is here, and what is rented
 
 Installing is not in this repo. The skills CLI resolves a git source, runs the
-selection wizard, knows the paths of sixty four agent tools, and writes
+selection wizard, knows the paths of seventy five agent tools, and writes
 `skills-lock.json`:
 
 ```bash

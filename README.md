@@ -24,7 +24,7 @@
 
 ## ⚡ Quick start
 
-Needs Node 20+ and one agent tool. Installation is handled by the [skills CLI](https://www.npmjs.com/package/skills), which knows the paths of sixty four agent tools:
+Needs Node 20+ and one agent tool. Installation is handled by the [skills CLI](https://www.npmjs.com/package/skills), which knows the paths of seventy five agent tools:
 
 ```bash
 cd your-project
@@ -39,7 +39,7 @@ That opens a wizard: pick the skills with the spacebar, pick your agents, pick p
 Non interactively, or in CI:
 
 ```bash
-npx -y skills@latest add Ericokim/agentic_skills -a claude-code -s '*' -y
+npx -y skills@latest add Ericokim/agentic_skills -a claude-code -a codex -s '*' -y
 ```
 
 Every skill in this repo is committed with the standard's rule blocks already injected, so a plain copier delivers them intact. This repo builds and checks the skills; it does not reimplement installing them.
@@ -80,7 +80,7 @@ agentic validate skills/
 
 `build` runs the same check and writes nothing when one skill fails, so an incoherent skill never reaches the directory an installer copies from.
 
-**Installing is rented, on purpose.** The [skills CLI](https://www.npmjs.com/package/skills) already resolves a git source, runs the selection wizard, knows the paths of sixty four agent tools, and writes a lockfile:
+**Installing is rented, on purpose.** The [skills CLI](https://www.npmjs.com/package/skills) already resolves a git source, runs the selection wizard, knows the paths of seventy five agent tools, and writes a lockfile:
 
 ```bash
 npx -y skills@latest add Ericokim/agentic_skills -a claude-code
@@ -235,7 +235,7 @@ Installing, updating and removing are the [skills CLI](https://www.npmjs.com/pac
 | Task | Command |
 |---|---|
 | Install | `npx -y skills@latest add Ericokim/agentic_skills` |
-| Pick agents | add `-a claude-code` (or `-a '*'` for all) |
+| Pick agents | add `-a claude-code`, repeated per agent (or `-a '*'` for all) |
 | Pick skills | add `-s develop,check` (or `-s '*'` for all) |
 | Global instead of project | add `-g` |
 | Copy instead of symlink | add `--copy` |

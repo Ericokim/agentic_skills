@@ -23,7 +23,7 @@ npx -y skills@latest add Ericokim/agentic_skills
 ```
 
 That is deliberate. The skills CLI already resolves a git source, runs the
-selection wizard, knows the paths of sixty four agent tools, and writes
+selection wizard, knows the paths of seventy five agent tools, and writes
 `skills-lock.json`. It also cannot be imported (it publishes a `bin` and no
 `main`), so wrapping it would mean shelling out to a CLI a person can type.
 

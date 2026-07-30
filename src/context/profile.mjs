@@ -232,11 +232,17 @@ export function profile(snapshot) {
     }
   }
 
-  // Our own lockfile names the workflow skills exactly.
-  const lock = parseJson(snapshot.files['skills.lock'] ?? '');
-  if (lock && Object.keys(lock).length > 0) {
-    mark(signals.workflowSkills, 'skills.lock');
-    signals.workflowSkills.detail = Object.keys(lock).sort();
+  // A lockfile names the workflow skills exactly, which beats guessing from
+  // directory names. Installation is rented from the skills CLI, so its
+  // skills-lock.json is the one that exists in practice; skills.lock is read
+  // too, because a project installed by this tool's earlier releases still has
+  // one and its skills did not stop existing.
+  const rented = parseJson(snapshot.files['skills-lock.json'] ?? '');
+  const legacy = parseJson(snapshot.files['skills.lock'] ?? '');
+  const installed = rented?.skills ?? legacy;
+  if (installed && typeof installed === 'object' && Object.keys(installed).length > 0) {
+    mark(signals.workflowSkills, rented?.skills ? 'skills-lock.json' : 'skills.lock');
+    signals.workflowSkills.detail = Object.keys(installed).sort();
   }
 
   // Our own manifest names whether this project opted into prompt first mode.

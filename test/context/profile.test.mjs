@@ -264,3 +264,33 @@ test('a composer.lock names composer as the package manager', () => {
   assert.equal(signals.packageManager.present, true);
   assert.equal(signals.packageManager.detail, 'composer');
 });
+
+// Installation is rented from the skills CLI, which writes skills-lock.json in
+// its own shape. Reading only our former skills.lock would let this signal go
+// quietly dead for every project that installed the normal way, and a dead
+// signal here means the generated AGENTS.md silently stops naming the workflow
+// skills the project actually has.
+const rentedLock = JSON.stringify({
+  version: 1,
+  skills: {
+    develop: { source: 'Ericokim/agentic_skills', skillPath: 'skills/develop/SKILL.md' },
+    audit: { source: 'Ericokim/agentic_skills', skillPath: 'skills/audit/SKILL.md' },
+  },
+});
+
+test('detects workflow skills from the skills CLI lockfile', () => {
+  const { signals } = profile(snap({ 'skills-lock.json': rentedLock }));
+  assert.equal(signals.workflowSkills.present, true);
+  assert.deepEqual(signals.workflowSkills.evidence, ['skills-lock.json']);
+  assert.deepEqual(signals.workflowSkills.detail, ['audit', 'develop']);
+});
+
+test('an empty skills CLI lockfile is not a detection', () => {
+  const { signals } = profile(snap({ 'skills-lock.json': JSON.stringify({ version: 1, skills: {} }) }));
+  assert.equal(signals.workflowSkills.present, false);
+});
+
+test('a malformed lockfile is ignored rather than throwing', () => {
+  const { signals } = profile(snap({ 'skills-lock.json': '{ not json' }));
+  assert.equal(signals.workflowSkills.present, false);
+});

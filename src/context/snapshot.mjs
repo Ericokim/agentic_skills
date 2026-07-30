@@ -35,6 +35,7 @@ const INTERESTING = [
   /^(README|CONTRIBUTING)\.md$/i,
   /^(AGENTS|CLAUDE)\.md$/,
   /^skills\.(json|lock)$/,
+  /^skills-lock\.json$/, // what the skills CLI writes, so the one that exists
   /^(tsconfig|next\.config|vite\.config|nuxt\.config|astro\.config)\.[a-z]+$/,
   /^\.env\.(example|sample)$/,
   /package\.json$/, // workspace manifests at any depth

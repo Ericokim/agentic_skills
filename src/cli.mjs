@@ -1,35 +1,42 @@
 #!/usr/bin/env node
-// agentic: install versioned Agent Skills that meet a checkable standard.
+// agentic: the standard the skills in this repo are held to, and the tools that
+// check it.
 //
-// Argument parsing is hand rolled and stays that way. A package manager whose
-// job is to install with no dependency tree should not have one of its own.
+// Installing is not here on purpose. The skills CLI already resolves a git
+// source, prompts through the four step wizard, knows the paths of sixty four
+// agent tools, and writes skills-lock.json. Reimplementing that was two
+// thousand lines to be worse at it, and it cannot be imported either: the
+// package publishes a bin and no main, so wrapping it would mean shelling out
+// to a CLI a person can type themselves.
+//
+// What cannot be rented is the reason this repo exists. A copier delivers the
+// standard only if what it copies already carries it, so `build` injects the
+// rule blocks and `validate` refuses an incoherent declaration before anything
+// is published. The check moved from install time to publish time; it did not
+// disappear.
+//
+// Argument parsing is hand rolled and stays that way, for the same reason there
+// are no dependencies at all.
 
 import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { add } from './commands/add.mjs';
 import { build as buildCommand } from './commands/build.mjs';
 import { context as contextCommand } from './commands/context.mjs';
-import { init } from './commands/init.mjs';
-import { list } from './commands/list.mjs';
 import { profile as profileCommand } from './commands/profile.mjs';
-import { remove } from './commands/remove.mjs';
 import { tokens } from './commands/tokens.mjs';
-import { update } from './commands/update.mjs';
 import { validate as validateCommand } from './commands/validate.mjs';
-import { DEFAULT_CACHE_DIR } from './fetch.mjs';
 import { STANDARD_VERSION } from './standard/index.mjs';
-import { TARGETS } from './targets/index.mjs';
 import { bold, dim, fail, line } from './ui.mjs';
 
-const BOOLEAN_FLAGS = new Set(['dry-run', 'force', 'help', 'version', 'all', 'plan', 'global', 'check']);
+const BOOLEAN_FLAGS = new Set(['help', 'version', 'check']);
 
 /** Parse `command args --flags` without a dependency. */
 export function parseArgv(argv) {
   const positional = [];
-  const flags = { target: [] };
+  const flags = {};
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
@@ -38,7 +45,7 @@ export function parseArgv(argv) {
       continue;
     }
     const name = token.replace(/^--?/, '');
-    const alias = { t: 'target', a: 'target', h: 'help', v: 'version', n: 'name' }[name] ?? name;
+    const alias = { h: 'help', v: 'version' }[name] ?? name;
 
     if (BOOLEAN_FLAGS.has(alias)) {
       flags[alias] = true;
@@ -49,8 +56,7 @@ export function parseArgv(argv) {
       throw new Error(`--${alias} needs a value`);
     }
     index += 1;
-    if (alias === 'target') flags.target.push(...value.split(',').map((t) => t.trim()));
-    else flags[alias] = value;
+    flags[alias] = value;
   }
 
   return { command: positional[0] ?? null, args: positional.slice(1), flags };
@@ -58,19 +64,18 @@ export function parseArgv(argv) {
 
 export const USAGE = `${bold('agentic')} ${dim('· agent skills that meet a checkable standard')}
 
+${bold('INSTALLING THESE SKILLS')}
+  npx -y skills@latest add Ericokim/agentic_skills
+
+  That is the whole install. The skills CLI does the resolving, the wizard,
+  and the agent paths; every skill in this repo is committed with the
+  standard's rule blocks already injected, so a copier delivers them intact.
+
 ${bold('USAGE')}
   agentic <command> [arguments] [options]
 
 ${bold('COMMANDS')}
-  init                      create skills.json, detecting the agent tools in use
-  add [source]              install a skill, creating skills.json first if
-                             there is none; with no source, installs every
-                             skill already in skills.json, or this tool's own
-                             skills if that list is empty
-  update [name]             re-resolve and recompile, showing what changed
-  remove <name>             delete a skill and the files it owns
-  list                      installed skills, drift, and anything that is wrong
-  validate [path]           check skill sources against the standard
+  validate [path]           check skills against the standard
   build                     regenerate the standard blocks in skills/ in place,
                              refusing to write anything if one fails the standard
   build --check             report what a build would change without writing,
@@ -81,51 +86,12 @@ ${bold('COMMANDS')}
   context --answers <file>  verify cited answers and write AGENTS.generated.md
 
 ${bold('OPTIONS')}
-  -t, -a, --target <id>     override targets (repeatable, or comma separated)
-  -n, --name <name>         name to install a source under
-      --only <names>        add: install just these skills from a multi-skill
-                             source (comma separated)
-      --all                 add: install every skill, skipping the wizard
-      --global              add: install to the home directory instead of the
-                             project, skipping the scope step of the wizard
-      --method <symlink|copy>
-                             add: how to install (symlink writes each skill
-                             once and points every agent at it; copy writes it
-                             separately per agent), skipping the method step
-                             of the wizard. When nobody says, a skill already
-                             in skills.lock keeps the method it has, and one
-                             with no history is copied
       --answers <file>      context: a JSON file of cited answers to verify
       --root <dir>          project root (default: the working directory)
-      --cache <dir>         source cache (default: ~/.cache/agentic/sources)
       --top <n>             tokens: heaviest turns to show (default: 12)
       --project <dir>       tokens: encoded transcript directory to read
-      --dry-run             plan the work and write nothing
-      --force               overwrite installed files that were edited by hand
   -h, --help                show this
   -v, --version             show the versions
-
-${bold('WIZARD')}
-  Running "agentic add <source>" in a terminal without --all opens a four
-  step wizard: which skills (when the source offers more than one and
-  --only/--name have not already chosen), which agent tools to install to
-  (unless -a/--target already said), which scope to install into (unless
-  --global already forced it), and which method to install with - symlink
-  or copy (unless --method already said; symlink is first and is the
-  default). ↑↓ move, space select, enter confirm, esc or ctrl+c cancels.
-  Typing filters by name, with no reserved letters. Cancelling any step
-  installs nothing and exits clean. Piped or non-interactive runs skip the
-  whole wizard and install everything to the detected targets in project
-  scope with copy, same as --all.
-
-${bold('SOURCES')}
-  github:owner/repo#v1.0.0            a tag, branch, or commit
-  github:owner/repo/skills/build      a skill inside a repo
-  git+https://host/team/skills.git    any git remote
-  ./local/skill                       a directory on this machine
-
-${bold('TARGETS')}
-  ${TARGETS.map((target) => `${target.id.padEnd(24)}${target.label}`).join('\n  ')}
 `;
 
 async function version() {
@@ -135,6 +101,24 @@ async function version() {
   line(dim(`standard ${STANDARD_VERSION}`));
   return 0;
 }
+
+/**
+ * Commands this tool used to own and the skills CLI now does.
+ *
+ * Saying so beats "unknown command": someone typing `agentic add` read a
+ * README, and the useful answer is the command that works, not a list of the
+ * ones that remain.
+ */
+const RENTED = {
+  add: 'npx -y skills@latest add Ericokim/agentic_skills',
+  install: 'npx -y skills@latest add Ericokim/agentic_skills',
+  init: 'npx -y skills@latest add Ericokim/agentic_skills',
+  update: 'npx -y skills@latest add Ericokim/agentic_skills',
+  remove: 'npx -y skills@latest remove <skill>',
+  rm: 'npx -y skills@latest remove <skill>',
+  list: 'npx -y skills@latest list',
+  ls: 'npx -y skills@latest list',
+};
 
 export async function main(argv) {
   let parsed;
@@ -154,59 +138,8 @@ export async function main(argv) {
   }
 
   const root = resolve(flags.root ?? process.cwd());
-  const cacheDir = flags.cache ? resolve(flags.cache) : DEFAULT_CACHE_DIR;
-  // The process is the one place that legitimately knows whether it is
-  // attached to a terminal. Deciding it here and passing it down means every
-  // command downstream is handed a plain boolean instead of reaching into
-  // ambient process state itself.
-  const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  const shared = {
-    root,
-    cacheDir,
-    cwd: process.cwd(),
-    targets: flags.target,
-    dryRun: Boolean(flags['dry-run']),
-    force: Boolean(flags.force),
-    interactive,
-  };
-
-  for (const target of flags.target) {
-    if (!TARGETS.some((known) => known.id === target)) {
-      fail(`unknown target "${target}", so use one of ${TARGETS.map((t) => t.id).join(', ')}`);
-      return 2;
-    }
-  }
-
-  if (flags.method && !['symlink', 'copy'].includes(flags.method)) {
-    fail(`unknown method "${flags.method}", so use symlink or copy`);
-    return 2;
-  }
 
   switch (command) {
-    case 'init':
-      return init(shared);
-    case 'add':
-      return add({
-        ...shared,
-        spec: args[0] ?? null,
-        name: flags.name ?? null,
-        only: flags.only ?? null,
-        all: Boolean(flags.all),
-        global: Boolean(flags.global),
-        method: flags.method ?? null,
-      });
-    case 'update':
-      return update({ ...shared, name: args[0] ?? null });
-    case 'remove':
-    case 'rm':
-      if (!args[0]) {
-        fail('remove needs a skill name');
-        return 2;
-      }
-      return remove({ ...shared, name: args[0] });
-    case 'list':
-    case 'ls':
-      return list(shared);
     case 'validate':
       return validateCommand({ root, target: resolve(args[0] ?? 'skills') });
     case 'build':
@@ -221,8 +154,18 @@ export async function main(argv) {
     case 'profile':
       return profileCommand({ root });
     case 'context':
-      return contextCommand({ root, plan: true, answers: flags.answers ? resolve(flags.answers) : null });
+      return contextCommand({
+        root,
+        plan: true,
+        answers: flags.answers ? resolve(flags.answers) : null,
+      });
     default:
+      if (RENTED[command]) {
+        fail(`installing is not this tool's job, so run instead:`);
+        line(`  ${bold(RENTED[command])}`);
+        line(dim('  the skills CLI owns installing, and the record of what it installed'));
+        return 2;
+      }
       fail(`unknown command "${command}"`);
       line(dim('run agentic --help for the list'));
       return 2;

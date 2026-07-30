@@ -1,46 +1,67 @@
 # Architecture
 
-For contributors. Why the pipeline is shaped this way, and where to add things.
+For contributors. Why the code is shaped this way, and where to add things.
 
-## The pipeline
+## What is here, and what is rented
 
-```
-add <spec>
-  │
-  ├─ source.mjs    parse the spec into a descriptor          pure
-  ├─ fetch.mjs     git clone into cache, resolve ref to sha  [I/O]
-  ├─ skill.mjs     SKILL.md -> frontmatter, body, sections   pure
-  ├─ validate.mjs  standard + packaging -> violations        pure
-  ├─ compile.mjs   replace declared blocks -> markdown       pure
-  ├─ targets/      plan files per target                     pure
-  ├─ install.mjs   write the planned files                   [I/O]
-  └─ lock.mjs      record source, sha, hash per file         [I/O]
+Installing is not in this repo. The skills CLI resolves a git source, runs the
+selection wizard, knows the paths of sixty four agent tools, and writes
+`skills-lock.json`:
+
+```bash
+npx -y skills@latest add Ericokim/agentic_skills
 ```
 
-Three stages touch the world. Four are pure functions over strings.
+This repo owns the part that cannot be rented: the standard, compiled into every
+skill before it is published, and refused when a declaration is incoherent. A
+copier delivers the standard only if what it copies already carries it, which is
+exactly what `build` guarantees.
 
-## Why the split matters
+An earlier version of this repo shipped its own installer: a git fetcher, a
+lockfile, eleven target adapters, and a hand rolled four step wizard. That was
+about 2,600 lines to be worse at a solved problem, and the skills CLI publishes a
+`bin` with no `main`, so it cannot even be imported as a library. Wrapping it
+would have meant shelling out to a CLI a person can type themselves.
 
-The entire standard, the whole validator, and the compiler are pure. They are
-tested with string literals: no fixtures on disk, no temp directories, no git
-repo, no network. For a project whose thesis is that discipline should be
+## The two pipelines
+
+```
+build
+  skills/<name>/SKILL.md
+    │
+    ├─ skill.mjs      SKILL.md -> frontmatter, body, sections    pure
+    ├─ validate.mjs   standard + packaging -> violations         pure
+    ├─ compile.mjs    replace declared blocks -> markdown        pure
+    └─ write back into the same file                             [I/O]
+
+context
+  a repository
+    │
+    ├─ snapshot.mjs   one bounded read of the repo               [I/O]
+    ├─ profile.mjs    snapshot -> signals, each with evidence    pure
+    ├─ registry.mjs   signals -> the sections that apply         pure
+    ├─ prefill.mjs    every value the repo already states        pure
+    ├─ assemble.mjs   selected sections -> one draft             pure
+    ├─ verify.mjs     re-read what the model claimed to read     pure
+    └─ compare.mjs    what would change, at heading level        pure
+```
+
+Only the ends touch the world. Everything between is pure functions over
+strings, tested with string literals and no fixtures, no temp directories, no
+git repo, no network. For a project whose thesis is that discipline should be
 checkable, the rules being the easiest thing in the codebase to test is the
 point.
 
-`install.mjs` is where the seam sits. `prepareInstall` runs everything up to and
-including planning and writes nothing. `commitInstall` writes. That split is why
-a skill failing validation costs nothing, and why `--dry-run` is the same code
-path minus the final call rather than a parallel implementation of it.
-
-## Publishing
+## Compiling in place
 
 There is one skills directory, not a source tree and a compiled tree. `skills/`
 holds what a person authors, the `standard:` declaration and any bundled files
-included, and it is also the directory any installer actually reads, including a
-third party one that only copies and never compiles. The two roles are reconciled
-by compiling in place: `agentic build` (`commands/build.mjs`) runs `validate.mjs`
-over every skill, refusing the whole build on any failure, then rewrites only the
-`<!-- agentic:standard -->` regions of each `SKILL.md` via `compileInPlace`.
+included, and it is also what an installer reads.
+
+The two roles are reconciled by compiling in place: `agentic build`
+(`commands/build.mjs`) validates every skill, refusing the whole build on any
+failure, then rewrites only the `<!-- agentic:standard -->` regions of each
+`SKILL.md` via `compileInPlace`.
 
 The alternative duplicates every skill on disk, and a reader then has to know
 which of the two copies to trust. Here the file is the artifact and the build
@@ -54,37 +75,28 @@ is committed instead of writing, which is what CI runs. It fails on the two ways
 and a hand edit inside a generated region. Prose outside the markers is never
 stale, because the file is the source.
 
-`compile` and `compileInPlace` differ by one frontmatter key. Install strips the
-declaration, since it is compile time metadata an agent has no use for; the
-build keeps it, since the next build has to read it again.
+`compile` and `compileInPlace` differ by one frontmatter key. `compile` strips
+the declaration, since it is compile time metadata an agent has no use for; the
+build keeps it, since the next build has to read it again. An installer that
+copies carries it through as an unused key, which agents ignore.
 
 ## Module map
 
 | Module | Owns |
 |---|---|
-| `cli.mjs` | Argument parsing, dispatch, exit codes |
+| `cli.mjs` | Argument parsing, dispatch, exit codes, and pointing rented commands at the skills CLI |
 | `commands/*.mjs` | One command each, human output, no pipeline logic |
-| `source.mjs` | Spec string to descriptor |
-| `fetch.mjs` | git, the source cache, ref to sha |
 | `skill.mjs` | The SKILL.md parser and its frontmatter dialect |
 | `standard/*.mjs` | One rule family each: its prose and its checks |
 | `standard/index.mjs` | Declaration parsing, invariants, the version |
 | `validate.mjs` | Packaging and portability rules, plus the standard |
 | `compile.mjs` | Injection and frontmatter serialization |
-| `targets/*.mjs` | Path and dialect per agent tool. No logic. |
-| `manifest.mjs` `lock.mjs` | `skills.json` and `skills.lock` |
-| `install.mjs` | The pipeline, assembled, plus drift detection |
-| `commands/build.mjs` | The publish time compile step: regenerating the blocks in `skills/` in place |
-| `commands/tokens.mjs` | Session transcript accounting, the only module not part of the install pipeline |
-| `ui.mjs` | Terminal output |
-| `context/snapshot.mjs` | One bounded read of a repository |
-| `context/profile.mjs` | Snapshot to signals, each with its evidence |
+| `commands/build.mjs` | The publish time compile step, in place over `skills/` |
+| `commands/tokens.mjs` | Session transcript accounting |
+| `context/*.mjs` | The AGENTS.md pipeline above |
 | `context/sections/*.mjs` | One file per section: its text and its predicate |
-| `context/registry.mjs` | The section list, and selection against a profile |
-| `context/prefill.mjs` | Every value the repository already states |
-| `context/assemble.mjs` | Selected sections to one flat draft |
-| `context/verify.mjs` | Re-read what the model claimed to have read |
-| `context/compare.mjs` | What would change, at heading level |
+| `fs-util.mjs` | The filesystem questions asked repeatedly, including what counts as a bundled file |
+| `ui.mjs` | Terminal output |
 
 ## Adding a rule family
 
@@ -101,28 +113,24 @@ The generic tests in `test/standard.test.mjs` iterate `FAMILIES`, so a new
 family is automatically checked for a valid `off` level, a non empty block per
 level, and a heading.
 
-## Adding a target
+## Adding a context section
 
-Create `src/targets/<id>.mjs` exporting `id`, `label`, `detect`, and
-`plan({root, name, compiled, skill})` returning `{path, contents}` objects. Add
-it to `TARGETS`.
-
-Targets must stay thin. They differ only in path and frontmatter dialect, which
-is the smallest part of the work. Anything you are tempted to compute in a
-target belongs upstream, or every target will need its own copy of it.
+Create `src/context/sections/<id>.mjs` exporting its heading, its text, and the
+predicate that decides whether a project needs it, then add it to the registry.
+Same rule as a standard family: the text and the condition live together, so a
+section cannot claim to apply under conditions its own file does not state.
 
 ## Constraints
 
-**Zero dependencies, permanently.** A tool whose job is to install with no
-dependency tree should not have one. This rules out an argument parser, a colour
+**Zero dependencies, permanently.** This rules out an argument parser, a colour
 library, a YAML parser, and a test framework. The frontmatter dialect is small
 deliberately: a skill needing more than scalars and one level of nesting is
 doing too much.
 
-**git is the only external command.** It behaves the same on macOS, Linux, and
-Windows. It is invoked with an argument list and no shell, so a repository URL
-containing shell metacharacters cannot become a command.
+**Do not rebuild what the skills CLI does.** Resolving sources, prompting, agent
+paths, lockfiles, symlink or copy. If a change starts to look like installation,
+it belongs in that project, not this one.
 
-**Nothing is silently overwritten.** The lockfile hashes emitted files so a hand
-edited skill is detected and reported. Every destructive path requires
-`--force`.
+**Nothing is silently overwritten.** `build` only rewrites its own marker
+regions, and `context` writes `AGENTS.generated.md` beside your `AGENTS.md`
+rather than over it.

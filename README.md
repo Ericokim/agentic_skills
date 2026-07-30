@@ -2,9 +2,9 @@
 
 # ⚙️ Agentic Skills
 
-### The package manager for Agent Skills that **compiles and refuses**
+### A nine skill workflow for AI coding agents, held to a standard that **compiles and refuses**
 
-*Every skill declares the engineering discipline it commits to. The installer writes that discipline into the file. A skill whose declaration is incoherent never installs at all.*
+*Every skill declares the engineering discipline it commits to. A build step writes that discipline into the file. A skill whose declaration is incoherent is never published at all.*
 
 [![check](https://github.com/Ericokim/agentic_skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Ericokim/agentic_skills/actions/workflows/ci.yml)
 [![node](https://img.shields.io/badge/node-%E2%89%A520-5FA04E?logo=node.js&logoColor=white)](https://nodejs.org)
@@ -16,7 +16,7 @@
 [![Cursor](https://img.shields.io/badge/Cursor-partial-6E7681)](https://cursor.com)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-open_format-1f6feb)](https://agentskills.io)
 
-**[Quick start](#-quick-start) · [How it works](#-what-makes-it-different) · [The standard](#-the-standard) · [Skills](#-the-nine-skills) · [Installing](#-installing) · [FAQ](#-faq)**
+**[Quick start](#-quick-start) · [How it works](#-what-makes-it-different) · [The standard](#-the-standard) · [Skills](#-the-nine-skills) · [Managing skills](#-managing-skills) · [FAQ](#-faq)**
 
 </div>
 
@@ -24,21 +24,25 @@
 
 ## ⚡ Quick start
 
-Needs Node 20+, git, and one agent tool (Claude Code, Codex, or Cursor).
+Needs Node 20+ and one agent tool. Installation is handled by the [skills CLI](https://www.npmjs.com/package/skills), which knows the paths of sixty four agent tools:
 
 ```bash
 cd your-project
-
-# Claude Code (installs into .claude/skills, then restart Claude Code)
-npx -y github:Ericokim/agentic_skills add -a claude-code
-
-# Generic .agents/skills, read by Codex and other agents
-npx -y github:Ericokim/agentic_skills add
 ```
 
-On a terminal, a source with more than one skill opens a picker to choose from; with no terminal to prompt on, every skill installs instead.
+```bash
+npx -y skills@latest add Ericokim/agentic_skills
+```
 
-It runs from GitHub, not npm: `agentic` and `agentic-skills` are already taken there by unrelated packages.
+That opens a wizard: pick the skills with the spacebar, pick your agents, pick project or global, pick symlink or copy. Then run `/audit` in your agent.
+
+Non interactively, or in CI:
+
+```bash
+npx -y skills@latest add Ericokim/agentic_skills -a claude-code -s '*' -y
+```
+
+Every skill in this repo is committed with the standard's rule blocks already injected, so a plain copier delivers them intact. This repo builds and checks the skills; it does not reimplement installing them.
 
 ---
 
@@ -58,14 +62,14 @@ standard:                                ## Evidence classification    <- inject
                                          ## Definition of done         <- injected
 ```
 
-**Incoherence.** A skill can promise a definition of done with no way to cite evidence, or independent review with no way to spawn a reviewer. Both look fine line by line. The installer checks the combination:
+**Incoherence.** A skill can promise a definition of done with no way to cite evidence, or independent review with no way to spawn a reviewer. Both look fine line by line. The build checks the combination:
 
 ```bash
-agentic add ./skills/liar
+agentic validate skills/
 ```
 
 ```text
-✗ liar does not meet the standard, so it was not installed
+✗ skills/liar/SKILL.md
     error standard-invariant  done requires evidence at tagged or stricter, because
                               the checklist asks for [O] evidence that an untagged
                               skill has no way to express
@@ -74,17 +78,19 @@ agentic add ./skills/liar
                               independent reviewer it has no way to spawn)
 ```
 
-Validation runs before anything is written, so a failing skill never lands half installed.
+`build` runs the same check and writes nothing when one skill fails, so an incoherent skill never reaches the directory an installer copies from.
 
-**Compared to a plain installer.** The third party `skills` package works with this repo's skill layout unmodified:
+**Installing is rented, on purpose.** The [skills CLI](https://www.npmjs.com/package/skills) already resolves a git source, runs the selection wizard, knows the paths of sixty four agent tools, and writes a lockfile:
 
 ```bash
 npx -y skills@latest add Ericokim/agentic_skills -a claude-code
 ```
 
-It copies `skills/` exactly as committed, and the committed skill already carries the standard: `agentic build` writes the injected blocks into it before every release, so a plain copier delivers the same rules `agentic add` does. It carries one extra frontmatter key, the `standard:` declaration that `agentic add` strips, which agents ignore.
+It copies `skills/` exactly as committed, and the committed skill already carries the standard, because `agentic build` writes the injected blocks into it before every release. The copy carries one extra frontmatter key, the `standard:` declaration, which agents ignore.
 
-What a plain copier cannot do is refuse. `agentic build` checks every skill's declaration for coherence and writes nothing when one fails, so an incoherent skill never reaches a directory any installer, this one or a third party's, would copy from. The check moved from install time to publish time; it did not disappear.
+What a copier cannot do is refuse. `agentic build` checks every declaration for coherence and writes nothing when one fails, so an incoherent skill never reaches a directory any installer would copy from. The check moved from install time to publish time; it did not disappear.
+
+This repo used to ship its own installer: a git fetcher, a lockfile, eleven target adapters, and a hand rolled wizard. That was about 2,600 lines to be worse at a solved problem, so it is gone.
 
 ---
 
@@ -222,18 +228,35 @@ State lives in files (a scope, specs, AGENTS.md, tests), not in a chat session, 
 
 ---
 
-## 🚀 Installing
+## 🧰 Managing skills
 
-### Commands
+Installing, updating and removing are the [skills CLI](https://www.npmjs.com/package/skills)'s job:
+
+| Task | Command |
+|---|---|
+| Install | `npx -y skills@latest add Ericokim/agentic_skills` |
+| Pick agents | add `-a claude-code` (or `-a '*'` for all) |
+| Pick skills | add `-s develop,check` (or `-s '*'` for all) |
+| Global instead of project | add `-g` |
+| Copy instead of symlink | add `--copy` |
+| Skip every prompt | add `-y` |
+| List what is installed | `npx -y skills@latest list` |
+| Remove one | `npx -y skills@latest remove develop` |
+| Restore from the lockfile | `npx -y skills@latest experimental_install` |
+
+It writes `skills-lock.json`, recording the source and a hash per skill. Commit that, and a teammate gets what you have.
+
+Pin a release by adding a git ref to the source: `Ericokim/agentic_skills#v0.4.0`.
+
+### This repo's own commands
+
+`agentic` builds and checks the skills. It does not install them.
 
 | | Command | Does | Writes |
 |:--:|---|---|:--:|
-| 🆕 | `agentic init` | Create `skills.json` up front, detecting the agent tools in use, without installing anything | ✍️ |
-| ⬇️ | `agentic add [source]` | Install a skill, creating `skills.json` first if there is none; with no source, install every skill in `skills.json`, or this tool's own skills if that list is empty | ✍️ |
-| 🔄 | `agentic update [name]` | Re-resolve and recompile, showing what changed | ✍️ |
-| 🗑️ | `agentic remove <name>` | Delete a skill and the files it owns | ✍️ |
-| 📋 | `agentic list` | Installed skills, drift, and anything that is wrong | 👁️ |
-| ✅ | `agentic validate [path]` | Check skill sources against the standard | 👁️ |
+| 🔨 | `agentic build` | Regenerate the standard's blocks in `skills/` in place, refusing to write anything if a declaration fails | ✍️ |
+| 🚦 | `agentic build --check` | Report what a build would change without writing, non zero when stale | 👁️ |
+| ✅ | `agentic validate [path]` | Check skills against the standard | 👁️ |
 | 💰 | `agentic tokens [file]` | Where the tokens went in a real session | 👁️ |
 | 🔎 | `agentic profile` | Show what this project looks like, and the evidence | 👁️ |
 | 📄 | `agentic context` | Plan an AGENTS.md, writing a draft and a brief | ✍️ |
@@ -243,83 +266,24 @@ State lives in files (a scope, specs, AGENTS.md, tests), not in a chat session, 
 
 | Option | Applies to | Does |
 |---|---|---|
-| `-t, --target <id>` | `init` `add` `update` | Override targets (repeatable, or comma separated) |
-| `-n, --name <name>` | `add` | Name to install a source under |
 | `--answers <file>` | `context` | A JSON file of cited answers to verify |
 | `--root <dir>` | all | Project root (default: working directory) |
-| `--cache <dir>` | `add` `update` | Source cache (default: `~/.cache/agentic/sources`) |
-| `--dry-run` | `add` `update` | Plan the work and write nothing |
-| `--force` | `add` `update` | Overwrite installed files that were edited by hand |
 | `--top <n>` | `tokens` | Heaviest turns to show (default 12) |
 | `--project <dir>` | `tokens` | Encoded transcript directory to read |
 
 **Exit codes:** `0` success · `1` something is wrong · `2` bad usage
 
-`list` and `validate` exit non zero when something is wrong, so either works as a CI or pre commit check. `validate` is the one to gate on: it runs the same code path `add` does, so a green validate means installable.
-
-Installing only adds: it writes `skills.json`, `skills.lock`, and the skill directories, and never edits or deletes anything already in the repo. A skill installs under its own name, so a collision with one you already have is reported by `list` rather than silently overwritten.
-
-`agentic validate .claude/skills` over an **installed** directory does the sensible thing: installed skills are compiled output, so they are checked against the rules that still apply once compiled (parse, name, budget, prose), and are not asked for the standard declaration the compiler deliberately stripped.
-
-### Sources
+Run it without cloning:
 
 ```bash
-agentic add github:owner/repo#v1.0.0          # a tag, branch, or commit
-agentic add github:owner/repo/skills/build    # a skill inside a repo
-agentic add git+https://host/team/skills.git  # any git remote
-agentic add ./local/skill                     # a directory on this machine
+npx -y github:Ericokim/agentic_skills profile
 ```
 
-No registry service. A source is a git repo or a path, a version is a git ref, and publishing is pushing. `git` is the only external command this tool runs, and it behaves the same on macOS, Linux, and Windows.
+`agentic validate .claude/skills` over an **installed** directory does the sensible thing: an installed skill has had its declaration stripped, so it is checked against the rules that still apply once compiled (parse, name, budget, prose) and is not asked for a declaration that is deliberately gone.
 
-### Targets
+### Bundled files
 
-| Target | Writes to | Detected from | Bundled files |
-|---|---|---|---|
-| `claude-code` | `.claude/skills/<name>/` | `.claude/` | yes |
-| `generic` | `.agents/skills/<name>/` | `.agents/` | yes |
-| `codex` | `.agents/skills/<name>/` plus an `agents/openai.yaml` picker adapter | opt in | yes |
-| `cursor` | `.cursor/rules/<name>.mdc` | `.cursor/` | **no** |
-
-`init` detects at most one target per directory: `codex` writes the same `.agents` layout as `generic`, so detecting both would plan the same file twice. Add the Codex picker adapter with `-t codex` when you want it.
-
-**Bundled files travel with the skill.** A skill can ship mode files and templates beside its `SKILL.md` and reference them by relative path, and those files install with it. Cursor is the exception, being one flat file with nowhere to put a sibling: `agentic add ./skills/check -t cursor` installs the `SKILL.md` and reports which bundled files were left out, rather than leaving an agent to find one missing mid task.
-
-### skills.json and skills.lock
-
-```jsonc
-// skills.json   the intent, hand editable
-{
-  "standard": "1.0.0",
-  "targets": ["claude-code", "codex"],
-  "skills": { "develop": "github:Ericokim/agentic_skills#v1.0.0" }
-}
-
-// skills.lock   the machine truth
-{ "develop": { "resolved": "...", "sha": "a1b2c3...", "standard": "1.0.0",
-               "files": { ".claude/skills/develop/SKILL.md": "sha256-..." } } }
-```
-
-The lockfile hashes the **emitted** file, not the source. That is what lets `agentic list` tell that someone hand edited an installed skill, so re-running `agentic add` on it warns and leaves the edit alone instead of silently overwriting it; reinstall over it with `--force`.
-
-### Team usage
-
-Commit `skills.json` and `skills.lock`. Let the installed directories be ignored, the way you would treat `node_modules`:
-
-```gitignore
-.claude/
-.agents/
-```
-
-A teammate then runs one command and gets exactly what you have, at the pinned commit:
-
-```bash
-agentic add        # no argument: install everything in skills.json
-```
-
-The lockfile records the resolved commit and the standard version per skill, so this is reproducible rather than "whatever is on main today".
-
-**The injected blocks come from the version of the tool you run**, not from the skill source. Two people on the same skill commit get different installed text if they run different versions of `agentic`, which is why the standard version is recorded per skill in the lockfile, and why `list` flags a skill compiled against an older one with a fix: `agentic update <name>`.
+A skill can ship mode files and templates beside its `SKILL.md` and reference them by relative path. `agentic validate` checks those files too, because they reach an agent the same way the skill does, and `build` holds them to the same prose and size budgets.
 
 ---
 
@@ -373,14 +337,13 @@ copies. Conventions, budgets, and the full rule list:
 
 | What you see | What it means | Do this |
 |---|---|---|
-| `has local edits, so it was left alone` | You edited an installed skill by hand | Keep it, or overwrite with `--force` |
-| `does not meet the standard` | The skill's rules contradict each other | Fix the source; the message names the rule |
-| `could not find a skill named X` | Wrong name or wrong repo | The message lists what the source does provide |
-| `repository not found` | Bad URL, or a private repo | Check the URL and your git access |
+| `does not meet the standard` | A skill's rules contradict each other | Fix the declaration; the message names the rule |
+| `skills/ is stale` | A declaration changed without a rebuild, or a generated block was hand edited | `npm run build` |
 | npx asks `Ok to proceed?` | You left out `-y` | Type `y`, or add `-y` |
 | Agent does not see the skill | Some tools cache the skill list | Restart your agent |
+| A skill tells the agent to read a missing file | The bundled file did not travel | Reinstall; `agentic validate` catches this before release |
 
-`agentic list` checks everything at once, exits non zero, and names a fix for anything wrong.
+`agentic validate skills/` and `agentic build --check` both exit non zero and name what is wrong, so either works as a CI or pre commit gate.
 
 **What this will not do**
 
@@ -406,13 +369,14 @@ copies. Conventions, budgets, and the full rule list:
 ```bash
 npm test          # node:test, no dependencies
 npm run validate  # the standard, against this repo's own skills
-npm run check     # both, and what CI runs
+npm run build     # regenerate the injected blocks in skills/, in place
+npm run check     # all three, and what CI runs
 npm run tokens    # where the tokens went in your last session
 ```
 
 The standard's own injected prose is held to the rules it enforces on authors, by a test over every family at every level: an author breaking a rule affects one skill, the standard breaking it affects every skill it ships.
 
-Architecture and why the pipeline is shaped this way: [`docs/architecture.md`](docs/architecture.md).
+Architecture, and why installing is rented rather than rebuilt: [`docs/architecture.md`](docs/architecture.md).
 
 ---
 

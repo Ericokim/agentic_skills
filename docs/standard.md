@@ -125,13 +125,17 @@ incoherent as a whole.
 ## Versioning
 
 `STANDARD_VERSION` in `src/standard/index.mjs` is bumped when injected prose or
-invariants change. Every lockfile entry records the version it compiled against,
-so `agentic list` can report an installed skill that predates a change:
+invariants change. Every skill's `SKILL.md` carries the version in its own marker,
+so what a skill was compiled against is readable in the file itself:
 
 ```
-develop  compiled against standard 1.0.0, current is 1.1.0
-  fix: agentic update develop
+<!-- agentic:standard 1.0.0 -->
 ```
+
+After a bump, `agentic build` regenerates every block and `agentic build --check`
+fails until it has, so a release cannot ship skills compiled against a standard
+that no longer exists. A skill installed from an older release keeps the version
+it was published with, which is what its marker says.
 
 Updating recompiles against the current standard. This is the normal way a
 standard change reaches installed skills: the source may be byte identical and

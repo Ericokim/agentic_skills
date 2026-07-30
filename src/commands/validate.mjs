@@ -5,7 +5,13 @@ import { compile } from '../compile.mjs';
 import { parseSkill } from '../skill.mjs';
 import { STANDARD_VERSION } from '../standard/index.mjs';
 import { bold, dim, line, reportViolations, symbol, yellow } from '../ui.mjs';
-import { BUDGETS, isCompiled, validateAsset, validateCompiled, validateSkill } from '../validate.mjs';
+import {
+  BUDGETS,
+  declaresStandard,
+  validateAsset,
+  validateCompiled,
+  validateSkill,
+} from '../validate.mjs';
 
 /** Warn while a skill is still passing, so growth is visible before it fails. */
 const WARN_AT = 0.8;
@@ -87,10 +93,10 @@ export async function validate({ root, target }) {
     const raw = await readFile(path, 'utf8');
     const name = basename(dirname(path));
 
-    // An installed skill is compiled output, not a source. Judging it by the
-    // source rules would report every one as missing a standard block that the
-    // compiler removed on purpose.
-    if (isCompiled(raw)) {
+    // A skill that declares no standard is installed output, not a source.
+    // Judging it by the source rules would report it as missing a standard
+    // block that the compiler removed on purpose.
+    if (!declaresStandard(raw)) {
       installed += 1;
       const violations = validateCompiled(raw, { dirname: name });
       if (violations.some((v) => v.severity === 'error')) failed += 1;

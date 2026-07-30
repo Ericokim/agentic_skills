@@ -3,6 +3,12 @@ name: check
 description: "Run /check before merge to confirm a change is sound. Two modes: `/check verify` drives the real app and proves behavior against the spec; `/check review` runs a senior code review on a different model than wrote the code. Verify after /develop, review before a PR. Writes findings to docs/reviews/, and never edits your code."
 allowed-tools: Bash, Read, Grep, Glob, Write, Agent
 argument-hint: [verify | review | both]
+standard:
+  evidence: strict
+  anti-hallucination: strict
+  tdd: off
+  review: independent
+  done: checklist
 ---
 
 <!-- agentic:standard 1.0.0 -->

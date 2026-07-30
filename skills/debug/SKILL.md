@@ -3,6 +3,12 @@ name: debug
 description: "Run /debug to find and fix the root cause of a bug: something failing, broken, throwing, or behaving wrong, a test failing for a reason that is not obvious, or a verify run finding a failure. Runs a reproduce, localize, hypothesize, test, fix, verify loop, makes the minimal fix, and hands a regression test to /test. No features, no extra refactors."
 allowed-tools: Bash, Read, Grep, Glob, Write, Edit, Agent
 argument-hint: [the symptom, error, or failing test]
+standard:
+  evidence: strict
+  anti-hallucination: strict
+  tdd: red-green
+  review: off
+  done: checklist
 ---
 
 <!-- agentic:standard 1.0.0 -->

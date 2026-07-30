@@ -3,6 +3,12 @@ name: test
 description: "Run /test to write a test suite for code you just built or changed, after a feature, route, or fix. Targets uncommitted changes automatically, reads and saves your framework choice, and picks the right strategy per file: happy path, boundaries, error states, accessibility. Writes tests, never production code."
 allowed-tools: Bash, Read, Grep, Glob, Write, Edit, Agent, AskUserQuestion
 argument-hint: [feature or path, or empty for uncommitted changes]
+standard:
+  evidence: strict
+  anti-hallucination: strict
+  tdd: red-green-refactor
+  review: off
+  done: checklist
 ---
 
 <!-- agentic:standard 1.0.0 -->

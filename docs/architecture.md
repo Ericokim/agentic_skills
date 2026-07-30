@@ -11,7 +11,7 @@ add <spec>
   ├─ fetch.mjs     git clone into cache, resolve ref to sha  [I/O]
   ├─ skill.mjs     SKILL.md -> frontmatter, body, sections   pure
   ├─ validate.mjs  standard + packaging -> violations        pure
-  ├─ compile.mjs   inject declared blocks -> markdown        pure
+  ├─ compile.mjs   replace declared blocks -> markdown       pure
   ├─ targets/      plan files per target                     pure
   ├─ install.mjs   write the planned files                   [I/O]
   └─ lock.mjs      record source, sha, hash per file         [I/O]
@@ -34,16 +34,29 @@ path minus the final call rather than a parallel implementation of it.
 
 ## Publishing
 
-`skills-src/` is what a person authors: the `standard:` block, and any bundled
-files, live there. `skills/` is compiled output, committed to git rather than
-gitignored, because it is the directory any installer actually reads,
-including a third party one that only copies and never compiles. `agentic
-build` (`commands/build.mjs`) runs `validate.mjs` over every source,
-refusing the whole build on any failure, then `compile.mjs` per skill, and
-writes the result to `skills/`. `agentic build --check` runs the same
-validate and compile in memory and diffs the result against what is
-committed instead of writing, which is what CI runs: a source edited without
-a rebuild fails the build rather than shipping a stale `skills/`.
+There is one skills directory, not a source tree and a compiled tree. `skills/`
+holds what a person authors, the `standard:` declaration and any bundled files
+included, and it is also the directory any installer actually reads, including a
+third party one that only copies and never compiles. The two roles are reconciled
+by compiling in place: `agentic build` (`commands/build.mjs`) runs `validate.mjs`
+over every skill, refusing the whole build on any failure, then rewrites only the
+`<!-- agentic:standard -->` regions of each `SKILL.md` via `compileInPlace`.
+
+The alternative duplicates every skill on disk, and a reader then has to know
+which of the two copies to trust. Here the file is the artifact and the build
+keeps one region of it honest.
+
+That works because injection strips any region already present before writing a
+new one, so `compileInPlace` is a fixpoint over its own output. `agentic build
+--check` runs the same validate and compile in memory and compares against what
+is committed instead of writing, which is what CI runs. It fails on the two ways
+`skills/` can go stale: a declaration or a rule family edited without a rebuild,
+and a hand edit inside a generated region. Prose outside the markers is never
+stale, because the file is the source.
+
+`compile` and `compileInPlace` differ by one frontmatter key. Install strips the
+declaration, since it is compile time metadata an agent has no use for; the
+build keeps it, since the next build has to read it again.
 
 ## Module map
 
@@ -61,7 +74,7 @@ a rebuild fails the build rather than shipping a stale `skills/`.
 | `targets/*.mjs` | Path and dialect per agent tool. No logic. |
 | `manifest.mjs` `lock.mjs` | `skills.json` and `skills.lock` |
 | `install.mjs` | The pipeline, assembled, plus drift detection |
-| `commands/build.mjs` | The publish time compile step: `skills-src/` to committed `skills/` |
+| `commands/build.mjs` | The publish time compile step: regenerating the blocks in `skills/` in place |
 | `commands/tokens.mjs` | Session transcript accounting, the only module not part of the install pipeline |
 | `ui.mjs` | Terminal output |
 | `context/snapshot.mjs` | One bounded read of a repository |
@@ -80,9 +93,9 @@ a rebuild fails the build rather than shipping a stale `skills/`.
 2. Add it to `FAMILIES` in `src/standard/index.mjs`.
 3. Add any invariant it participates in to `checkInvariants`.
 4. Bump `STANDARD_VERSION`.
-5. Declare the new family in every skill under `skills-src/`, since declaration
-   is required and has no default. `npm run validate` lists what is missing.
-   Then `npm run build` to bring the compiled `skills/` back in sync.
+5. Declare the new family in every skill under `skills/`, since declaration is
+   required and has no default. `npm run validate` lists what is missing. Then
+   `npm run build` to regenerate the marker regions.
 
 The generic tests in `test/standard.test.mjs` iterate `FAMILIES`, so a new
 family is automatically checked for a valid `off` level, a non empty block per

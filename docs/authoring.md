@@ -102,13 +102,15 @@ bundled file installs there incomplete.
 ## Before committing
 
 ```bash
-npm run check     # tests, the standard against skills-src/, then build --check
+npm run check     # tests, the standard against skills/, then build --check
 ```
 
-Author under `skills-src/<name>/`. `skills/` is compiled output, committed to
-git so any installer finds it already compiled; never edit it by hand, and run
-`npm run build` after any source change so it stays current. `build --check`
-(part of `npm run check`) fails when it does not.
+Author under `skills/<name>/`. There is one skills directory, not a source tree
+and a compiled one: the file you edit is the file an installer reads. Edit the
+prose and the `standard:` declaration freely, but never edit between the
+`<!-- agentic:standard -->` markers, because those regions are generated. Run
+`npm run build` after changing a declaration to regenerate them. `build --check`
+(part of `npm run check`) fails on a stale region or a hand edited one.
 
 Reread the diff for lines that change nothing, and for a rule now stated twice.
 A prune should not change behavior; if a cut might, say so and confirm it.

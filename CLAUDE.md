@@ -10,10 +10,13 @@ Two things in one repo:
   resolves a skill from git or a path, validates it against a standard,
   compiles the standard's rules into it, and installs it for one or more agent
   tools.
-- `skills-src/` holds the nine workflow skills as authored, against that
-  standard. `skills/` is compiled output, committed to git: `agentic build`
-  writes it, and it is what any installer, this project's own `add` included,
-  actually reads. Never edit `skills/` by hand; it is generated.
+- `skills/` holds the nine workflow skills. One directory, no second compiled
+  copy: a person authors the prose and the `standard:` declaration, and
+  `agentic build` regenerates the blocks between the
+  `<!-- agentic:standard -->` markers in place. It is also what any installer,
+  this project's own `add` included, actually reads. Edit the prose and the
+  declaration freely; never edit inside a marker region, because a build
+  overwrites it.
 
 The distinguishing behavior: the installer **refuses** a skill whose standard
 declaration is incoherent, and validation runs before anything is written.
@@ -22,15 +25,16 @@ declaration is incoherent, and validation runs before anything is written.
 
 ```bash
 npm test          # node --test, using its own file discovery
-npm run validate  # the standard against skills-src/
-npm run build     # compile skills-src/ to skills/, refusing on a violation
+npm run validate  # the standard against skills/
+npm run build     # regenerate the blocks in skills/ in place, refusing on a violation
 npm run check     # test, validate, and build --check - what CI runs
 node src/cli.mjs <command>   # run the CLI from source
 ```
 
-Run `npm run build` after any edit under `skills-src/`. `skills/` is
-committed, so `npm run check` (via `build --check`) fails when it drifts from
-what the source would compile to.
+Run `npm run build` after changing a `standard:` declaration or any injected
+prose in `src/standard/`. `npm run check` (via `build --check`) fails when a
+marker region no longer matches what the declaration and the standard would
+produce, which is also how a hand edit inside one gets caught.
 
 Run a single test file: `node --test test/compile.test.mjs`
 
@@ -61,9 +65,10 @@ last call.
   enforces it.
 - **Targets stay thin.** They differ only in path and frontmatter dialect.
   Anything computed in a target belongs upstream.
-- **Never write a shared discipline block into a skill body.** Declare it in
-  frontmatter; the compiler injects it. Hand written duplicates are the exact
-  problem this project exists to remove.
+- **Never write a shared discipline block into a skill body by hand.** Declare
+  it in frontmatter; the compiler injects it between the markers. Hand written
+  duplicates are the exact problem this project exists to remove, and `build
+  --check` fails on one.
 - **Bump `STANDARD_VERSION`** in `src/standard/index.mjs` when injected prose or
   invariants change, then update every skill's declaration.
 - **A context section owns its text and its predicate in one file** under
@@ -75,8 +80,8 @@ last call.
 
 Skills declare all five standard families explicitly. There are no defaults, and
 `off` must be typed. Full conventions in `docs/authoring.md`; the normative rule
-reference is `docs/standard.md`. Author under `skills-src/<name>/`, then run
-`npm run build` to regenerate `skills/<name>/` before committing.
+reference is `docs/standard.md`. Author under `skills/<name>/`, then run
+`npm run build` to regenerate its marker regions before committing.
 
 The validator enforces prose rules the skills themselves teach: no em or en
 dashes, no hardcoded vendor model aliases, no naming a specific subagent tool in

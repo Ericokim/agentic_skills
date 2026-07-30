@@ -71,10 +71,10 @@ ${bold('COMMANDS')}
   remove <name>             delete a skill and the files it owns
   list                      installed skills, drift, and anything that is wrong
   validate [path]           check skill sources against the standard
-  build                     compile skills-src/ into skills/, refusing to
-                             write anything if a source fails the standard
-  build --check             compare compiled output against skills/ without
-                             writing, exiting non zero when it is stale
+  build                     regenerate the standard blocks in skills/ in place,
+                             refusing to write anything if one fails the standard
+  build --check             report what a build would change without writing,
+                             exiting non zero when skills/ is stale
   tokens [file.jsonl]       where the tokens went in a real session
   profile                   show what this project looks like, and the evidence
   context                   plan an AGENTS.md, writing a draft and a brief
@@ -207,7 +207,7 @@ export async function main(argv) {
     case 'ls':
       return list(shared);
     case 'validate':
-      return validateCommand({ root, target: resolve(args[0] ?? 'skills-src') });
+      return validateCommand({ root, target: resolve(args[0] ?? 'skills') });
     case 'build':
       return buildCommand({ root, check: Boolean(flags.check) });
     case 'tokens':

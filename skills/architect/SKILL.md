@@ -3,6 +3,12 @@ name: architect
 description: "Run /architect when choosing between approaches, designing a feature or page, picking a stack, or when /develop says a decision is owed: anytime a load bearing technical decision is unmade. Asks deep questions, recommends an answer, and writes a build spec to docs/specs/ whose acceptance criteria are the contract. Owns all spec files."
 allowed-tools: Bash, Read, Grep, Glob, Write, Edit, Agent, AskUserQuestion
 argument-hint: [the decision, feature, or page to design]
+standard:
+  evidence: tagged
+  anti-hallucination: strict
+  tdd: off
+  review: independent
+  done: checklist
 ---
 
 <!-- agentic:standard 1.0.0 -->

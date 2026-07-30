@@ -3,6 +3,12 @@ name: audit
 description: Run /audit on a greenfield project, an existing codebase with missing docs, or one area (/audit src/auth) to bootstrap the AI context every later skill reads. Writes tool agnostic AGENTS.md plus thin CLAUDE.md pointers, adding only what is missing. Never overwrites curated content.
 allowed-tools: Bash, Read, Grep, Glob, Write, Edit, Agent, AskUserQuestion
 argument-hint: [path to one area, or empty for the whole repo]
+standard:
+  evidence: strict
+  anti-hallucination: strict
+  tdd: off
+  review: off
+  done: checklist
 ---
 
 <!-- agentic:standard 1.0.0 -->

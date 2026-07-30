@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { compile } from '../src/compile.mjs';
+import { compile, compileInPlace } from '../src/compile.mjs';
 import { parseSkill } from '../src/skill.mjs';
 import { STANDARD_VERSION } from '../src/standard/index.mjs';
 
@@ -119,4 +119,60 @@ body
   );
   assert.match(out, /description: "Run this: then that"/);
   assert.equal(parseSkill(out).frontmatter.description, 'Run this: then that');
+});
+
+// compileInPlace is what `agentic build` writes back over the file it read. The
+// declaration survives, because it is the part a person authors and the next
+// build has to read it again. Everything else about the injection is shared with
+// compile(), so these tests only cover what differs and the round trip.
+
+test('compileInPlace keeps the declaration and injects the blocks', () => {
+  const out = compileInPlace(parseSkill(source(FULL)));
+  assert.match(out, /standard:\n {2}evidence: strict/);
+  assert.match(out, /## Evidence classification/);
+  assert.match(out, /## Definition of done/);
+  assert.match(out, /Builds the thing\./);
+});
+
+test('compileInPlace is a fixpoint over its own output', () => {
+  const once = compileInPlace(parseSkill(source(FULL)));
+  const twice = compileInPlace(parseSkill(once));
+  const thrice = compileInPlace(parseSkill(twice));
+  assert.equal(twice, once, 'a second build must not change a current file');
+  assert.equal(thrice, once);
+});
+
+test('compileInPlace replaces an existing region rather than stacking a second copy', () => {
+  const once = compileInPlace(parseSkill(source(FULL)));
+  const twice = compileInPlace(parseSkill(once));
+  assert.equal(twice.match(/## Evidence classification/g).length, 1);
+  assert.equal(twice.match(/## Definition of done/g).length, 1);
+  assert.equal(twice.match(/<!-- agentic:standard /g).length, 2);
+  assert.equal(twice.match(/<!-- \/agentic:standard -->/g).length, 2);
+});
+
+test('compileInPlace regenerates a hand edited block', () => {
+  const once = compileInPlace(parseSkill(source(FULL)));
+  const tampered = once.replace('## Definition of done', '## Definition of nearly done');
+  assert.equal(compileInPlace(parseSkill(tampered)), once);
+});
+
+test('compileInPlace picks up a changed declaration, dropping the block no longer declared', () => {
+  const once = compileInPlace(parseSkill(source(FULL)));
+  const relaxed = compileInPlace(parseSkill(once.replace('  done: checklist', '  done: off')));
+  assert.doesNotMatch(relaxed, /## Definition of done/);
+  assert.match(relaxed, /## Evidence classification/, 'the families still declared stay');
+  assert.match(relaxed, /Builds the thing\./, 'the authored prose survives');
+});
+
+test('installing what compileInPlace wrote strips the declaration and changes nothing else', () => {
+  const inPlace = compileInPlace(parseSkill(source(FULL)));
+  const installed = compile(parseSkill(inPlace));
+  assert.equal(installed, compile(parseSkill(source(FULL))), 'one directory, one set of rules');
+  assert.doesNotMatch(installed.split('---')[1], /standard:/);
+});
+
+test('compileInPlace leaves a body with no declaration alone', () => {
+  const raw = `---\nname: build\ndescription: Builds.\nallowed-tools: Read\n---\n\n## Do\n\nThings.\n`;
+  assert.equal(compileInPlace(parseSkill(raw)), raw);
 });

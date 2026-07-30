@@ -3,6 +3,12 @@ name: scope
 description: "Run /scope to turn a product idea into a living, coarse scope in docs/scope/ and keep it current: plan a new product, plan the next slice, enroll one named feature, or run bare to reconcile after shipping and queue what is next. Fixes WHAT to build. /architect designs how, /develop builds it."
 allowed-tools: Bash, Read, Grep, Glob, Write, Edit, Agent, AskUserQuestion
 argument-hint: [idea | feature name | empty to reconcile]
+standard:
+  evidence: tagged
+  anti-hallucination: strict
+  tdd: off
+  review: off
+  done: checklist
 ---
 
 <!-- agentic:standard 1.0.0 -->

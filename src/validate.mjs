@@ -145,19 +145,25 @@ function checkProse(body, raw, budget) {
 }
 
 /**
- * Is this an installed skill rather than a source?
+ * Does this skill declare a standard, and so answer to the source rules?
  *
- * The compiler stamps a provenance marker, so compiled output identifies
- * itself. Without this, running the source rules over an installed directory
- * reports every skill as missing its standard block, which is not a failure at
- * all: the block is stripped on install by design.
+ * The injected marker cannot answer this, because a source keeps its blocks in
+ * the file: `skills/` here is both what a person authors and what an installer
+ * reads. The declaration can, and it is the exact thing the source rules need,
+ * since the compiler strips it on install. Without this check, an installed
+ * skill gets reported as missing a block that was removed on purpose.
  */
-export function isCompiled(raw) {
-  return /<!--\s*agentic:standard\s/.test(raw);
+export function declaresStandard(raw) {
+  try {
+    return Object.hasOwn(parseSkill(raw).frontmatter, 'standard');
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Validate an installed skill.
+ * Validate a skill that declares no standard, which in practice means an
+ * installed one.
  *
  * Applies what still holds once a skill is compiled: it must parse, name
  * itself, fit its budget, and keep to the prose rules. It must not be asked for

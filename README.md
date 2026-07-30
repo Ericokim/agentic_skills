@@ -350,15 +350,18 @@ Your `AGENTS.md` is never overwritten: the run writes `AGENTS.generated.md` and 
 ## ✍️ Authoring a skill
 
 ```bash
-agentic validate skills-src/     # the same code path add runs
-agentic build                    # compile skills-src/ into skills/, refusing on a violation
-agentic build --check            # fail if skills/ is stale, what CI runs
+agentic validate skills/         # the same code path add runs
+agentic build                    # regenerate the standard blocks in place, refusing on a violation
+agentic build --check            # fail if a block is stale, what CI runs
 ```
 
-A green `validate` means installable. Sources live under `skills-src/`;
-`skills/` is compiled output, committed to git so any installer, this one or
-a third party's, finds it already compiled. Conventions, budgets, and the full
-rule list: [`docs/authoring.md`](docs/authoring.md).
+A green `validate` means installable. Skills live in one directory, `skills/`:
+the file you author is the file an installer reads, this tool or a third
+party's. You write the prose and the `standard:` declaration; `build`
+regenerates the blocks between the `<!-- agentic:standard -->` markers, so the
+committed skill already carries the standard even for an installer that only
+copies. Conventions, budgets, and the full rule list:
+[`docs/authoring.md`](docs/authoring.md).
 
 ---
 

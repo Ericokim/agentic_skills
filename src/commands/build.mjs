@@ -1,29 +1,33 @@
-// The publish time compile step: skills-src/ is what a person authors, skills/
-// is the compiled output any installer, this tool's own `add` included, reads.
+// The publish time compile step, run over the one directory that holds the
+// skills.
 //
-// A third party installer that only copies (never compiles) still delivers the
-// standard as long as what it copies is already compiled. That is the entire
-// reason this split exists: committing compiled output moves the refusal
-// earlier, to a build that runs before anything is published, rather than
-// leaving every installer downstream responsible for compiling correctly.
+// `skills/` is both what a person authors and what any installer reads, this
+// tool's own `add` included. A person edits the prose and the `standard:`
+// declaration; the build regenerates the marker delimited blocks in place. A
+// third party installer that only copies (never compiles) still delivers the
+// standard, because what it copies already carries it.
 //
-// Two modes, one pipeline. Plain `build` validates every source, refusing the
-// whole build if any fails exactly as `validate` would report it, compiles,
-// and writes. `--check` runs the same validate and compile in memory but
-// writes nothing, comparing the result against what is already committed so a
-// source edited without a rebuild fails CI instead of shipping stale.
+// One directory rather than a source tree and a compiled tree. The alternative
+// duplicates every skill on disk, and a reader then has to know which of the two
+// copies to trust. Here the file is the artifact and the build keeps one region
+// of it honest.
+//
+// Two modes, one pipeline. Plain `build` validates every skill, refusing the
+// whole build if any fails exactly as `validate` would report it, then compiles
+// and writes back. `--check` runs the same validate and compile in memory but
+// writes nothing, comparing against what is committed so a declaration or a
+// rule family edited without a rebuild fails CI instead of shipping stale.
 
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { join, relative } from 'node:path';
 
-import { compile } from '../compile.mjs';
+import { compileInPlace } from '../compile.mjs';
 import { readIfPresent } from '../fs-util.mjs';
 import { parseSkill } from '../skill.mjs';
 import { bold, dim, line, reportViolations, symbol } from '../ui.mjs';
 import { validateAsset, validateSkill } from '../validate.mjs';
 
-export const SOURCE_DIR = 'skills-src';
-export const OUTPUT_DIR = 'skills';
+export const SKILLS_DIR = 'skills';
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
 
@@ -31,8 +35,8 @@ const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
  * Every file that ships beside a skill's SKILL.md, with its path relative to
  * the skill's own directory - the same shape install.mjs's collectAssets
  * produces, kept as its own copy here because the two walk different roots
- * (a fetched source directory there, skills-src/<name> here) for reasons that
- * do not share code cleanly.
+ * (a fetched source directory there, skills/<name> here) for reasons that do
+ * not share code cleanly.
  */
 async function collectAssets(dir) {
   const assets = [];
@@ -58,18 +62,18 @@ async function collectAssets(dir) {
   return assets.sort((a, b) => a.relative.localeCompare(b.relative));
 }
 
-/** Every skill authored under skills-src/, sorted by name. */
-async function readSources(srcRoot) {
+/** Every skill under skills/, sorted by name. */
+async function readSkills(skillsRoot) {
   let entries;
   try {
-    entries = await readdir(srcRoot, { withFileTypes: true });
+    entries = await readdir(skillsRoot, { withFileTypes: true });
   } catch {
     return [];
   }
   const skills = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const dir = join(srcRoot, entry.name);
+    const dir = join(skillsRoot, entry.name);
     const raw = await readIfPresent(join(dir, 'SKILL.md'));
     if (raw === null) continue;
     skills.push({ name: entry.name, dir, raw, assets: await collectAssets(dir) });
@@ -78,13 +82,13 @@ async function readSources(srcRoot) {
 }
 
 /**
- * Validate every source against the standard, printed exactly as `validate`
- * prints so the two never drift apart, and refusing the whole build the
- * moment any one skill fails - a build is one artifact, not nine independent
- * ones, so a single incoherent skill blocks all of it rather than shipping
- * eight good skills and silently dropping the ninth.
+ * Validate every skill against the standard, printed exactly as `validate`
+ * prints so the two never drift apart, and refusing the whole build the moment
+ * any one fails - a build is one artifact, not nine independent ones, so a
+ * single incoherent skill blocks all of it rather than shipping eight good
+ * skills and silently leaving the ninth stale.
  */
-async function validateSources(root, skills) {
+async function validateAll(root, skills) {
   let failed = 0;
   for (const skill of skills) {
     const violations = validateSkill(skill.raw, { dirname: skill.name });
@@ -101,101 +105,68 @@ async function validateSources(root, skills) {
   return failed;
 }
 
-/** Compile every source in memory. Keys are paths relative to skills/. */
-async function compileAll(skills) {
-  const output = new Map();
-  for (const skill of skills) {
-    output.set(`${skill.name}/SKILL.md`, compile(parseSkill(skill.raw)));
-    for (const asset of skill.assets) {
-      output.set(`${skill.name}/${asset.relative}`, await readFile(asset.path, 'utf8'));
-    }
-  }
-  return output;
-}
-
-/** Every file already on disk under a root, relative path (posix style) to contents. */
-async function readTree(root) {
-  const found = new Map();
-  const walk = async (current, prefix) => {
-    let entries;
-    try {
-      entries = await readdir(current, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue;
-      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        await walk(join(current, entry.name), rel);
-        continue;
-      }
-      found.set(rel, await readFile(join(current, entry.name), 'utf8'));
-    }
-  };
-  await walk(root, '');
-  return found;
-}
-
 /**
- * Compile every skill under skills-src/ into what an installer reads, and
- * either write it to skills/ or, with `check`, compare it against what is
- * already there without writing anything.
+ * Compile every skill in place, and either write back what changed or, with
+ * `check`, report what would change without writing anything.
  */
 export async function build({ root, check = false }) {
-  const srcRoot = join(root, SOURCE_DIR);
-  const outRoot = join(root, OUTPUT_DIR);
+  const skillsRoot = join(root, SKILLS_DIR);
 
-  const skills = await readSources(srcRoot);
+  const skills = await readSkills(skillsRoot);
   if (skills.length === 0) {
-    line(`${symbol.fail} no skills found under ${SOURCE_DIR}/`);
+    line(`${symbol.fail} no skills found under ${SKILLS_DIR}/`);
     return 1;
   }
 
   line();
-  const failed = await validateSources(root, skills);
+  const failed = await validateAll(root, skills);
   line();
 
   if (failed > 0) {
     line(
       `${symbol.fail} ${failed} of ${skills.length} skills failed the standard, so nothing was built`,
     );
-    line(dim(`  fix the source under ${SOURCE_DIR}/, then run this again`));
+    line(dim(`  fix the skill under ${SKILLS_DIR}/, then run this again`));
     return 1;
   }
 
-  const output = await compileAll(skills);
+  // Compiling is idempotent, so a skill already carrying current blocks
+  // compiles to the bytes it already has. That is what makes "stale" and
+  // "written" the same comparison rather than two.
+  const compiled = skills.map((skill) => ({
+    ...skill,
+    path: `${skill.name}/SKILL.md`,
+    out: compileInPlace(parseSkill(skill.raw)),
+  }));
+  const stale = compiled.filter((skill) => skill.out !== skill.raw);
 
   if (check) {
-    const onDisk = await readTree(outRoot);
-    const paths = new Set([...onDisk.keys(), ...output.keys()]);
-    const diffs = [];
-    for (const path of [...paths].sort()) {
-      if (!output.has(path)) diffs.push(`${path} (extra, no source produces this anymore)`);
-      else if (!onDisk.has(path)) diffs.push(`${path} (missing from ${OUTPUT_DIR}/)`);
-      else if (onDisk.get(path) !== output.get(path)) diffs.push(`${path} (stale)`);
-    }
-
-    if (diffs.length === 0) {
-      line(`${symbol.ok} ${bold(`${OUTPUT_DIR}/`)} matches ${skills.length} compiled skills, nothing stale`);
+    if (stale.length === 0) {
+      line(
+        `${symbol.ok} ${bold(`${SKILLS_DIR}/`)} matches ${skills.length} compiled skills, nothing stale`,
+      );
       return 0;
     }
-
-    line(`${symbol.fail} ${bold(`${OUTPUT_DIR}/`)} is stale, so run ${bold('npm run build')}:`);
-    for (const diff of diffs) line(`    ${diff}`);
+    line(`${symbol.fail} ${bold(`${SKILLS_DIR}/`)} is stale, so run ${bold('npm run build')}:`);
+    for (const skill of stale) line(`    ${skill.path} (stale)`);
     return 1;
   }
 
-  await rm(outRoot, { recursive: true, force: true });
-  let bytes = 0;
-  for (const [path, contents] of output) {
-    const full = join(outRoot, path);
-    await mkdir(dirname(full), { recursive: true });
-    await writeFile(full, contents, 'utf8');
-    bytes += Buffer.byteLength(contents, 'utf8');
+  for (const skill of stale) {
+    await writeFile(join(skill.dir, 'SKILL.md'), skill.out, 'utf8');
   }
 
-  line(`${symbol.ok} compiled ${skills.length} skills to ${bold(`${OUTPUT_DIR}/`)}, ${kb(bytes)} total`);
-  for (const path of [...output.keys()].sort()) line(dim(`    ${path}`));
+  const bytes = compiled.reduce((sum, skill) => sum + Buffer.byteLength(skill.out, 'utf8'), 0);
+  if (stale.length === 0) {
+    line(
+      `${symbol.ok} ${skills.length} skills in ${bold(`${SKILLS_DIR}/`)} were already current, ${kb(bytes)} total`,
+    );
+    return 0;
+  }
+
+  line(
+    `${symbol.ok} compiled ${stale.length} of ${skills.length} skills in ${bold(`${SKILLS_DIR}/`)}, ${kb(bytes)} total`,
+  );
+  for (const skill of stale) line(dim(`    ${skill.path}`));
   return 0;
 }

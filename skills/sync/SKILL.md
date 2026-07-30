@@ -3,6 +3,12 @@ name: sync
 description: "Run /sync as the last step after a change is complete, around merge, to keep durable knowledge current. Updates root and nested AGENTS.md, reconciles the scope from repo evidence, and flags specs the change made stale. Surgical edits only: it adds lines and rewrites single lines it owns, never a whole section and never curated prose."
 allowed-tools: Bash, Read, Grep, Glob, Write, Edit, Agent
 argument-hint: [empty, or a path to scope the reconcile]
+standard:
+  evidence: strict
+  anti-hallucination: strict
+  tdd: off
+  review: off
+  done: checklist
 ---
 
 <!-- agentic:standard 1.0.0 -->

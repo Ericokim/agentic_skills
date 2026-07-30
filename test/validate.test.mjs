@@ -1,7 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { BUDGETS, isCompiled, validateAsset, validateCompiled, validateSkill } from '../src/validate.mjs';
+import {
+  BUDGETS,
+  declaresStandard,
+  validateAsset,
+  validateCompiled,
+  validateSkill,
+} from '../src/validate.mjs';
 
 const FULL = `standard:
   evidence: strict
@@ -218,9 +224,21 @@ Tag every claim.
 
 ${body}`;
 
-test('recognises compiled output by its provenance marker', () => {
-  assert.equal(isCompiled(compiledSkill()), true);
-  assert.equal(isCompiled(good()), false);
+test('recognises a source by its declaration, not by the injected marker', () => {
+  // The marker cannot answer this: a skill under skills/ is a source and keeps
+  // its blocks in the file. The declaration is what the source rules need, and
+  // it is the thing install strips.
+  assert.equal(declaresStandard(good()), true);
+  assert.equal(declaresStandard(compiledSkill()), false);
+  assert.equal(
+    declaresStandard(`${good().replace(/^---\n/, '---\n')}\n<!-- agentic:standard 1.0.0 -->\n\n## Evidence classification\n\nTag it.\n\n<!-- /agentic:standard -->\n`),
+    true,
+    'a source that already carries its blocks is still a source',
+  );
+});
+
+test('declaresStandard says no rather than throwing on an unparseable file', () => {
+  assert.equal(declaresStandard('not a skill at all'), false);
 });
 
 test('a compiled skill is not reported as missing its standard block', () => {
@@ -247,43 +265,32 @@ test('a compiled skill is still held to frontmatter rules', () => {
   assert.ok(ids(violations).includes('frontmatter-required'));
 });
 
-test('every authored skill compiles to something that passes the compiled rules', async () => {
+test('every skill under skills/ passes the source rules, and compiles to something that passes the installed rules', async () => {
   const { readFile, readdir } = await import('node:fs/promises');
   const { join } = await import('node:path');
   const { compile } = await import('../src/compile.mjs');
   const { parseSkill } = await import('../src/skill.mjs');
 
   const repo = new URL('..', import.meta.url).pathname;
-  const entries = await readdir(join(repo, 'skills-src'), { withFileTypes: true });
-
-  for (const entry of entries.filter((e) => e.isDirectory())) {
-    const raw = await readFile(join(repo, 'skills-src', entry.name, 'SKILL.md'), 'utf8');
-    const out = compile(parseSkill(raw));
-    assert.equal(isCompiled(out), true, `${entry.name} lost its marker`);
-    assert.deepEqual(
-      validateCompiled(out, { dirname: entry.name }),
-      [],
-      `${entry.name} compiles to something that fails its own rules`,
-    );
-  }
-});
-
-test('the compiled output committed under skills/ passes the compiled rules for all nine skills', async () => {
-  const { readFile, readdir } = await import('node:fs/promises');
-  const { join } = await import('node:path');
-
-  const repo = new URL('..', import.meta.url).pathname;
   const entries = await readdir(join(repo, 'skills'), { withFileTypes: true });
   const names = entries.filter((e) => e.isDirectory()).map((e) => e.name);
-  assert.equal(names.length, 9, 'expected the nine compiled workflow skills');
+  assert.equal(names.length, 9, 'expected the nine workflow skills');
 
   for (const name of names) {
     const raw = await readFile(join(repo, 'skills', name, 'SKILL.md'), 'utf8');
-    assert.equal(isCompiled(raw), true, `${name} under skills/ is not compiled output`);
+    assert.equal(declaresStandard(raw), true, `${name} lost its declaration`);
     assert.deepEqual(
-      validateCompiled(raw, { dirname: name }),
+      validateSkill(raw, { dirname: name }),
       [],
-      `${name} under skills/ fails the compiled rules`,
+      `${name} under skills/ fails the source rules`,
+    );
+
+    const out = compile(parseSkill(raw));
+    assert.equal(declaresStandard(out), false, `${name} shipped its declaration`);
+    assert.deepEqual(
+      validateCompiled(out, { dirname: name }),
+      [],
+      `${name} compiles to something that fails its own rules`,
     );
   }
 });

@@ -3,6 +3,12 @@ name: develop
 description: "Run /develop to build a feature, UI or backend: a page, component, API, service, or data slice. If something load bearing is undecided and no spec records it, it stops and routes you to /architect. Otherwise it reads the spec plus AGENTS.md, builds against the acceptance criteria, and advances the scope."
 allowed-tools: Bash, Read, Grep, Glob, Write, Edit, Agent, AskUserQuestion
 argument-hint: [feature or surface to build]
+standard:
+  evidence: strict
+  anti-hallucination: strict
+  tdd: red-green
+  review: off
+  done: checklist
 ---
 
 <!-- agentic:standard 1.0.0 -->

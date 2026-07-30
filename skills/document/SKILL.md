@@ -3,6 +3,12 @@ name: document
 description: Run /document `pr` | `changelog` | `release-note` | `postmortem` (or let it ask) to write the human facing prose about a change. Drafts from the real commits and diff, writing to the right place for the type. Does not write code, tests, or specs.
 allowed-tools: Bash, Read, Grep, Glob, Write, Edit, Agent, AskUserQuestion
 argument-hint: [pr | changelog | release-note | postmortem]
+standard:
+  evidence: tagged
+  anti-hallucination: strict
+  tdd: off
+  review: off
+  done: checklist
 ---
 
 <!-- agentic:standard 1.0.0 -->

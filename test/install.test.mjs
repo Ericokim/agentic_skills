@@ -245,35 +245,17 @@ test('locateSkill names what a source actually contains when the skill is missin
   );
 });
 
-test('installing every authored skill in this repo succeeds', async () => {
+test('installing every skill in this repo succeeds, and installing the result again is a fixpoint', async () => {
+  // skills/ is the one directory: what a person authors and what this tool's
+  // own `add` (or any third party installer) finds when this repo is the
+  // source. Two properties matter and neither is provable at compile() alone.
+  //
+  // Installing it must strip the declaration and inject the blocks once. Then
+  // installing that output must be a no op, because a source that declares
+  // nothing has nothing to inject, which is what stops a skill picking up a
+  // second copy of every block each time it passes through a tool.
   const root = await project();
-  const repo = new URL('..', import.meta.url).pathname;
-
-  const entries = await readdir(join(repo, 'skills-src'), { withFileTypes: true });
-  const names = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-  assert.equal(names.length, 9, 'expected the nine workflow skills');
-
-  for (const name of names) {
-    const prepared = await install(root, join(repo, 'skills-src', name));
-    assert.deepEqual(
-      prepared.violations.filter((v) => v.severity === 'error'),
-      [],
-      `${name} failed the standard`,
-    );
-    await commitInstall({ root, ...prepared });
-    const installed = await readFile(join(root, `.claude/skills/${name}/SKILL.md`), 'utf8');
-    assert.match(installed, /## Definition of done/, `${name} lost its definition of done`);
-  }
-});
-
-test('installing every compiled skill under skills/ succeeds too, unchanged by a second compile', async () => {
-  // skills/ is committed compiled output, exactly what this tool's own `add`
-  // (and any third party installer) finds when this repo is the source. That
-  // has to install cleanly, not just compile() to itself in isolation: this
-  // proves the full validate-then-compile pipeline recognises already
-  // compiled input rather than rejecting it for missing a standard: block
-  // the compiler stripped on purpose.
-  const root = await project();
+  const again = await project();
   const repo = new URL('..', import.meta.url).pathname;
 
   const entries = await readdir(join(repo, 'skills'), { withFileTypes: true });
@@ -285,11 +267,30 @@ test('installing every compiled skill under skills/ succeeds too, unchanged by a
     assert.deepEqual(
       prepared.violations.filter((v) => v.severity === 'error'),
       [],
-      `${name} was rejected as an install source`,
+      `${name} failed the standard`,
     );
-    const before = await readFile(join(repo, 'skills', name, 'SKILL.md'), 'utf8');
-    assert.equal(prepared.compiled, before, `${name} changed on a second compile`);
     await commitInstall({ root, ...prepared });
+
+    const installed = await readFile(join(root, `.claude/skills/${name}/SKILL.md`), 'utf8');
+    assert.match(installed, /## Definition of done/, `${name} lost its definition of done`);
+    assert.doesNotMatch(
+      installed.split('---')[1],
+      /standard:/,
+      `${name} shipped its compile time declaration`,
+    );
+    assert.equal(
+      installed.match(/<!-- agentic:standard /g).length,
+      2,
+      `${name} has more than the two injected regions`,
+    );
+
+    const round = await install(again, join(root, '.claude/skills', name));
+    assert.deepEqual(
+      round.violations.filter((v) => v.severity === 'error'),
+      [],
+      `${name} was rejected when reinstalled from its own installed form`,
+    );
+    assert.equal(round.compiled, installed, `${name} changed on a second pass`);
   }
 });
 

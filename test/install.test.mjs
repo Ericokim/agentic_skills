@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { lstat, mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -810,4 +810,67 @@ test('installing a multi-skill source never touches an existing AGENTS.md', asyn
   );
 
   assert.equal(await readFile(join(root, 'AGENTS.md'), 'utf8'), agentsContents);
+});
+
+test('re-running add with no source keeps the method the skill was installed with', async () => {
+  // The restore path: a teammate clones a repo carrying skills.json, skills.lock
+  // and the committed canonical directory, then runs `add` with no arguments.
+  // That must not silently reshape the install. Defaulting to copy here turned a
+  // symlink install into nine copies, rewrote the lockfile to say so, and left
+  // every canonical file orphaned, all reported as success.
+  const root = await project();
+  const spec = await sourceSkill('build', GOOD);
+
+  const shared = {
+    root,
+    name: null,
+    only: null,
+    targets: ['claude-code'],
+    cacheDir: tmpdir(),
+    dryRun: false,
+    force: false,
+    cwd: root,
+  };
+
+  await captureOutput(() => add({ ...shared, spec, method: 'symlink' }));
+  assert.ok((await lstat(join(root, '.claude/skills/build'))).isSymbolicLink());
+
+  // What a fresh clone has: the manifest, the lockfile, the canonical files,
+  // and no symlinks, because the agent directory is commonly gitignored.
+  await rm(join(root, '.claude/skills/build'), { recursive: true, force: true });
+
+  const { result: code } = await captureOutput(() =>
+    add({ ...shared, spec: null, method: null }),
+  );
+  assert.equal(code, 0);
+
+  assert.ok(
+    (await lstat(join(root, '.claude/skills/build'))).isSymbolicLink(),
+    'the restore rebuilt the install as copies instead of relinking it',
+  );
+  const lock = await readLock(root);
+  assert.equal(lock.build.method, 'symlink', 'the lockfile was rewritten to a method nobody chose');
+});
+
+test('add with no source still defaults to copy when the lockfile records nothing', async () => {
+  // The CI case the copy default exists for: no prior install to honour, so a
+  // checkout gets real files rather than links into an ephemeral workspace.
+  const root = await project();
+  const spec = await sourceSkill('build', GOOD);
+
+  const shared = {
+    root,
+    name: null,
+    only: null,
+    targets: ['claude-code'],
+    cacheDir: tmpdir(),
+    dryRun: false,
+    force: false,
+    cwd: root,
+  };
+
+  await captureOutput(() => add({ ...shared, spec, method: 'copy' }));
+  const lock = await readLock(root);
+  assert.equal(lock.build.method, 'copy');
+  assert.ok((await lstat(join(root, '.claude/skills/build'))).isDirectory());
 });

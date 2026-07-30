@@ -92,8 +92,9 @@ ${bold('OPTIONS')}
                              add: how to install (symlink writes each skill
                              once and points every agent at it; copy writes it
                              separately per agent), skipping the method step
-                             of the wizard (default off a TTY, or with --all
-                             and no --method: copy)
+                             of the wizard. When nobody says, a skill already
+                             in skills.lock keeps the method it has, and one
+                             with no history is copied
       --answers <file>      context: a JSON file of cited answers to verify
       --root <dir>          project root (default: the working directory)
       --cache <dir>         source cache (default: ~/.cache/agentic/sources)

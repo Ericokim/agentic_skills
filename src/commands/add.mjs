@@ -334,10 +334,9 @@ export async function add({
   }
 
   // Step 4: installation method. Skipped when the caller already said via
-  // --method. Off a TTY, or with --all and no --method, this defaults to
-  // copy without ever opening the picker - that is what a CI checkout and a
-  // committed skills folder expect, and symlinks would only leave a CI runner
-  // with dangling links once its ephemeral workspace is gone.
+  // --method. Left null here when nobody has said, and resolved per skill
+  // below, because the right answer depends on what that skill was installed
+  // with last time.
   let installMethod = method;
   if (runWizard && !installMethod) {
     openWizard();
@@ -349,8 +348,6 @@ export async function add({
     line(frameLine(chosenMethod === 'symlink' ? 'Symlink' : 'Copy to all agents'));
 
     installMethod = chosenMethod;
-  } else if (!installMethod) {
-    installMethod = 'copy';
   }
 
   if (wizardOpen) line(frameClose());
@@ -377,6 +374,23 @@ export async function add({
   const nameWidth = multi ? Math.max(...requests.map((r) => (r.name ?? '').length)) : 0;
 
   const lock = await readLock(manifestRoot);
+
+  /**
+   * The method to install one skill with, when nobody said explicitly.
+   *
+   * An install already recorded in the lockfile keeps its shape. Re-running
+   * `add` to restore a checkout is the documented way to rebuild the agent
+   * directories, which are commonly gitignored, and it must not silently
+   * reshape the install: defaulting to copy there turned a symlink install
+   * into copies, rewrote the lockfile to say so, and orphaned every canonical
+   * file, all reported as success.
+   *
+   * Copy stays the default for a skill with no history. That is what a CI
+   * checkout expects, and symlinks would only leave a runner with dangling
+   * links once its ephemeral workspace is gone.
+   */
+  const methodFor = (name) => installMethod ?? lock[name]?.method ?? 'copy';
+
   let updated = manifest;
   let failures = 0;
 
@@ -391,7 +405,7 @@ export async function add({
       lock,
       force,
       dryRun,
-      method: installMethod,
+      method: methodFor(request.name),
       scope,
     });
 
